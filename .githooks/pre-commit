@@ -1,0 +1,5 @@
+#!/bin/sh
+# Stämplar om cache-busting-hasharna innan varje commit.
+# Aktivera en gång per klon med:  git config core.hooksPath .githooks
+node tools/cache-bust.js || exit 0
+git add index.html

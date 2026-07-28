@@ -5,9 +5,20 @@
    Vanilla JS + Canvas. Symboler: game-icons.net (CC BY 3.0)
    ============================================================ */
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 
 const CHANGELOG = [
+  {
+    version: '1.2.0',
+    date: '2026-07-28',
+    items: [
+      'Nytt inställningsläge (kugghjulet uppe till höger) med två sätt att spela.',
+      'Direktkörning (standard): klockan startar när du lägger till ditt första stopp och du väljer nya åtgärder i realtid medan bilen rullar.',
+      'Planering: du lägger upp hela körschemat i lugn och ro och trycker på Kör för att simulera det.',
+      'Valet sparas och gäller direkt — du kan byta mitt i ett uppdrag.',
+      'Cache-busting på varje push, så nya versioner alltid laddas i webbläsaren.'
+    ]
+  },
   {
     version: '1.1.0',
     date: '2026-07-28',
@@ -276,7 +287,11 @@ const BAL = {
 const SAVE_KEY = 'grl-transport-save';
 
 function defaultSave() {
-  return { level: 0, money: 0, upgrades: { batteryCap: 0, chargeSpeed: 0, cargo: 0, thermos: 0, coolbox: 0 }, finished: false };
+  return {
+    level: 0, money: 0, finished: false,
+    mode: 'realtime', // 'realtime' = välj åtgärder medan bilen kör, 'planning' = planera först och tryck Kör
+    upgrades: { batteryCap: 0, chargeSpeed: 0, cargo: 0, thermos: 0, coolbox: 0 }
+  };
 }
 function loadSave() {
   try {
@@ -302,6 +317,7 @@ const game = {
   deliveries: [],
   route: [],
   over: false,
+  userPaused: false,
   truck: {
     x: LOCATIONS.depot.x, y: LOCATIONS.depot.y,
     atNode: nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y),
@@ -317,6 +333,7 @@ const chargeRate = () => BAL.chargeRate * Math.pow(2, save.upgrades.chargeSpeed)
 const energyFactor = () => Math.pow(0.75, save.upgrades.thermos);
 const foodFactor = () => Math.pow(0.75, save.upgrades.coolbox);
 const currentLevel = () => LEVELS[game.levelIndex];
+const isRealtime = () => save.mode !== 'planning';
 const carriedCount = () => game.deliveries.filter(d => d.state === 'carried').length;
 
 /* ---------- DOM ---------- */
@@ -367,6 +384,8 @@ function queueLocation(locId) {
   game.queue.push({ locId, service: loc.service || null });
   toast('Tillagt: ' + loc.name, loc.service ? SERVICE_TEXT[loc.service].icon : 'marker');
   rebuildRoute();
+  // I direktläge rullar allt igång av sig självt vid första stoppet
+  if (isRealtime() && !game.running && !game.over && !game.userPaused) startLevel();
   renderQueue();
 }
 
@@ -549,6 +568,7 @@ function setupLevel() {
   game.clock = 0;
   game.queue = [];
   game.route = [];
+  game.userPaused = false;
   game.deliveries = lvl.deliveries.map(d => Object.assign({}, d, { state: 'waiting' }));
   const t = game.truck;
   t.x = LOCATIONS.depot.x; t.y = LOCATIONS.depot.y;
@@ -566,6 +586,7 @@ function setupLevel() {
 function startLevel() {
   if (game.running || game.over) return;
   game.running = true;
+  game.userPaused = false;
   tryPickupAt('depot');
   renderAll();
 }
@@ -645,7 +666,10 @@ function showQuestModal(atStart) {
         (lvl.startFood ? ' och du börjar bli hungrig' : '') +
         '. Planera in vila hos Vera eller mat hos Bengt.</p>'
       : '') +
-    (atStart ? '<p class="sub">' + iconSpan('info') + ' Tryck på platser på kartan för att planera rutten. Dra för att panorera, nyp eller scrolla för att zooma.</p>' : '') +
+    (atStart ? '<p class="sub">' + iconSpan('info') + ' ' + (isRealtime()
+        ? 'Tryck på en plats på kartan så åker hon dit direkt — klockan startar vid ditt första stopp, och du väljer nya åtgärder medan hon kör.'
+        : 'Lägg upp hela körschemat först och tryck sedan på Kör.') +
+        ' Dra för att panorera, nyp eller scrolla för att zooma.</p>' : '') +
     '<div class="btnrow"><button class="btn primary" id="modalOk">' + iconSpan('check') + '<span class="lbl">' + (atStart ? 'Börja planera' : 'Stäng') + '</span></button></div>'
   );
   $('#modalOk').addEventListener('click', hideModal);
@@ -749,6 +773,57 @@ function showShopModal(returnTo) {
   });
 }
 
+const MODES = [
+  {
+    id: 'realtime', name: 'Direktkörning', icon: 'click',
+    tagline: 'Välj åtgärder i realtid medan hon kör',
+    desc: 'Tryck på en plats så rullar bilen dit direkt. Klockan startar vid ditt första stopp och du fyller på med nya stopp allt eftersom — precis som en riktig arbetsdag.'
+  },
+  {
+    id: 'planning', name: 'Planering', icon: 'checklist',
+    tagline: 'Lägg upp hela schemat och tryck Kör',
+    desc: 'Klockan står stilla medan du bygger hela körschemat i lugn och ro. När du är nöjd trycker du på Kör och ser rutten simuleras från början till slut.'
+  }
+];
+
+function showSettingsModal() {
+  let html = '<p class="eyebrow">Inställningar</p><h2>' + iconSpan('cog') + 'Så vill jag spela</h2>';
+  for (const m of MODES) {
+    const on = save.mode === m.id;
+    html += '<button class="modeopt' + (on ? ' active' : '') + '" data-mode="' + m.id + '" type="button">' +
+      '<span class="icon">' + ICONS[m.icon] + '</span>' +
+      '<span class="info"><b>' + m.name + (on ? ' <em>· valt</em>' : '') + '</b>' +
+      '<small>' + m.tagline + '</small><small class="long">' + m.desc + '</small></span>' +
+      '<span class="tick">' + (on ? ICONS.check : '') + '</span></button>';
+  }
+  html += '<p class="sub">Valet sparas och gäller direkt, även mitt i ett uppdrag.</p>' +
+    '<div class="btnrow"><button class="btn primary" id="modalOk">' + iconSpan('check') + '<span class="lbl">Klar</span></button></div>';
+  showModal(html);
+  document.querySelectorAll('.modeopt[data-mode]').forEach(b => {
+    b.addEventListener('click', () => {
+      setMode(b.dataset.mode);
+      showSettingsModal();
+    });
+  });
+  $('#modalOk').addEventListener('click', hideModal);
+}
+
+function setMode(mode) {
+  if (save.mode === mode) return;
+  save.mode = mode;
+  persist();
+  if (mode === 'planning') {
+    // Pausa så spelaren hinner planera klart
+    game.running = false;
+    game.userPaused = false;
+  } else if (!game.over && game.queue.length && !game.userPaused) {
+    startLevel();
+  }
+  toast(mode === 'planning' ? 'Planeringsläge.' : 'Direktkörning.', mode === 'planning' ? 'checklist' : 'click');
+  renderQueue();
+  renderControls();
+}
+
 function showChangelogModal() {
   let html = '<p class="eyebrow">Version ' + VERSION + '</p><h2>' + iconSpan('truck') + 'Delivery Girl</h2>' +
     '<p class="sub">Vad som ingår i varje version:</p><ul class="changelog">';
@@ -820,6 +895,9 @@ function renderQueue() {
   const ol = $('#queueList');
   ol.innerHTML = '';
   $('#queueHint').style.display = game.queue.length ? 'none' : '';
+  $('#queueHint').textContent = isRealtime()
+    ? 'Tryck på en plats på kartan så rullar bilen dit direkt. Lägg till fler stopp medan hon kör.'
+    : 'Tryck på platser på kartan för att bygga hela körschemat, tryck sedan på Kör.';
   $('#queueCount').textContent = game.queue.length;
   game.queue.forEach((item, i) => {
     const loc = LOCATIONS[item.locId];
@@ -850,7 +928,7 @@ function renderControls() {
   const play = $('#playBtn');
   play.innerHTML = game.running
     ? iconSpan('pause') + '<span class="lbl">Paus</span>'
-    : iconSpan('play') + '<span class="lbl">Kör</span>';
+    : iconSpan('play') + '<span class="lbl">' + (isRealtime() && !game.userPaused && !game.queue.length ? 'Starta' : 'Kör') + '</span>';
   play.disabled = game.over;
   $('#speedBtn').innerHTML = iconSpan('fast') + '<span class="lbl">' + game.speed + 'x</span>';
   $('#clearBtn').innerHTML = iconSpan('trash') + '<span class="lbl">Rensa</span>';
@@ -861,6 +939,7 @@ function renderControls() {
 function renderChips() {
   $('#moneyChip').innerHTML = iconSpan('money') + save.money + ' kr';
   $('#shopBtn').innerHTML = iconSpan('shop') + 'Butik';
+  $('#settingsBtn').innerHTML = iconSpan('cog');
   $('#versionBtn').textContent = 'v' + VERSION;
 }
 
@@ -1368,7 +1447,8 @@ function locationAt(wx, wy) {
 
 $('#playBtn').addEventListener('click', () => {
   if (game.over) return;
-  if (!game.running) startLevel(); else game.running = false;
+  if (game.running) { game.running = false; game.userPaused = true; }
+  else { game.userPaused = false; startLevel(); }
   renderControls();
 });
 $('#speedBtn').addEventListener('click', () => {
@@ -1379,6 +1459,10 @@ $('#clearBtn').addEventListener('click', clearQueue);
 $('#restartBtn').addEventListener('click', () => { toast('Uppdraget börjar om.', 'retry'); setupLevel(); });
 $('#questChip').addEventListener('click', () => showQuestModal(false));
 $('#versionBtn').addEventListener('click', showChangelogModal);
+$('#settingsBtn').addEventListener('click', () => {
+  if (game.running) { game.running = false; game.userPaused = true; renderControls(); }
+  showSettingsModal();
+});
 $('#shopBtn').addEventListener('click', () => {
   if (game.running) { game.running = false; renderControls(); }
   showShopModal(null);

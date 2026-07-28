@@ -12,6 +12,13 @@ Du är Delivery Girl och kör stadens lilla eldrivna lastbil. Mormor Greta packa
 - **Pengar & butik:** klarade uppdrag ger pengar som köper uppgraderingar — större batteri, snabbladdning, större flak, kaffetermos och kylbox.
 - Framsteg sparas automatiskt i webbläsaren (localStorage).
 
+## Två sätt att spela
+
+Kugghjulet uppe till höger öppnar inställningarna, där du väljer spelläge. Valet sparas och gäller direkt, även mitt i ett uppdrag.
+
+- **Direktkörning** (standard) — tryck på en plats så rullar bilen dit direkt. Klockan startar vid ditt första stopp och du fyller på med nya åtgärder i realtid medan hon kör.
+- **Planering** — klockan står stilla medan du bygger hela körschemat. När du är nöjd trycker du på **Kör** och ser rutten simuleras från början till slut.
+
 ## Kartan
 
 Kartan går att panorera och zooma: dra för att flytta, nyp eller scrolla för att zooma, och knapparna nere till höger zoomar in, ut och visar hela kartan. Vyn är inte låst till liggande läge utan fyller skärmen lika bra stående som liggande.
@@ -21,6 +28,7 @@ Kartan går att panorera och zooma: dra för att flytta, nyp eller scrolla för 
 - Vanilla JS + Canvas, en enda statisk sida (`index.html`, `style.css`, `game.js`, `icons.js`).
 - Dubbeltryck-zoom, nyp-zoom på sidan, textmarkering och iOS-förstoringsglas är avstängda för en app-lik känsla på mobil.
 - Versionsnummer och ändringslogg visas i spelet — tryck på versionsknappen (v…) uppe till höger.
+- **Cache-busting:** `tools/cache-bust.js` stämplar innehållshashar på `style.css`, `icons.js` och `game.js` i `index.html`. Det körs automatiskt vid varje push av `.github/workflows/cache-bust.yml`, som committar tillbaka uppdaterade hashar när något ändrats. Kör det lokalt med `node tools/cache-bust.js`, eller aktivera pre-commit-hooken en gång per klon med `git config core.hooksPath .githooks` så stämplas det redan vid commit.
 
 ## Attribution
 

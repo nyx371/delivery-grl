@@ -459,6 +459,33 @@ button.chip:hover { border-color: var(--accent); }
 .shopitem .buy:disabled { background: transparent; color: var(--muted); border: 1px solid var(--line); cursor: default; }
 .shopitem .maxed { color: var(--green); font-size: 0.8rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.25rem; }
 
+.modeopt {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: left;
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem 0.75rem;
+  margin-bottom: 0.55rem;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.modeopt:hover { border-color: rgba(246, 185, 59, 0.55); }
+.modeopt.active { border-color: var(--accent); background: rgba(246, 185, 59, 0.1); }
+.modeopt > .icon { width: 1.8rem; height: 1.8rem; color: var(--muted); margin-top: 0.1rem; }
+.modeopt.active > .icon { color: var(--accent); }
+.modeopt .info { flex: 1; min-width: 0; }
+.modeopt .info b { font-size: 0.95rem; display: block; margin-bottom: 0.15rem; }
+.modeopt .info b em { color: var(--accent); font-style: normal; font-size: 0.78rem; font-weight: 600; }
+.modeopt .info small { display: block; color: var(--muted); font-size: 0.8rem; }
+.modeopt .info small.long { margin-top: 0.3rem; line-height: 1.45; font-size: 0.78rem; }
+.modeopt .tick { width: 1.2rem; flex: none; color: var(--accent); }
+.modeopt .tick svg { width: 100%; height: 100%; display: block; }
+
 .changelog { list-style: none; }
 .changelog > li { margin-bottom: 0.85rem; }
 .changelog .ver { font-weight: 700; color: var(--accent); font-size: 0.92rem; }
