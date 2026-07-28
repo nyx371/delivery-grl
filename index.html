@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Delivery Girl</title>
-<link rel="stylesheet" href="style.css?v=d6dfe52609">
+<link rel="stylesheet" href="style.css?v=44c07ea6a7">
 </head>
 <body>
 
@@ -37,12 +37,15 @@
 
   <!-- Körschema -->
   <div id="queuePanel" class="glass">
-    <button id="queueToggle" class="queuehead" type="button">
-      <span class="icon" data-icon="path"></span>
-      <span class="qh-title">Körschema</span>
-      <span class="qh-count" id="queueCount">0</span>
-      <span class="qh-caret" id="queueCaret">▾</span>
-    </button>
+    <div class="queuehead">
+      <button id="queueToggle" class="qh-toggle" type="button">
+        <span class="icon" data-icon="path"></span>
+        <span class="qh-title">Körschema</span>
+        <span class="qh-count" id="queueCount">0</span>
+        <span class="qh-caret">▾</span>
+      </button>
+      <button id="clearBtn" class="qh-clear" type="button" aria-label="Rensa körschemat"></button>
+    </div>
     <div id="queueBody">
       <p class="hint" id="queueHint">Tryck på en plats på kartan för att lägga till ett stopp.</p>
       <ol id="queueList" class="queue"></ol>
@@ -51,6 +54,7 @@
 
   <!-- Zoomreglage -->
   <div id="zoomCluster">
+    <button class="zbtn glass active" id="followBtn" type="button" aria-label="Följ bilen"></button>
     <button class="zbtn glass" id="zoomIn" type="button" aria-label="Zooma in">+</button>
     <button class="zbtn glass" id="zoomOut" type="button" aria-label="Zooma ut">−</button>
     <button class="zbtn glass" id="zoomFit" type="button" aria-label="Visa hela kartan"></button>
@@ -60,8 +64,6 @@
   <div id="bottomBar" class="glass">
     <button id="playBtn" class="btn primary" type="button"></button>
     <button id="speedBtn" class="btn" type="button"></button>
-    <button id="clearBtn" class="btn" type="button"></button>
-    <button id="restartBtn" class="btn danger" type="button"></button>
   </div>
 
   <div id="toasts"></div>
@@ -72,6 +74,6 @@
 </div>
 
 <script src="icons.js?v=9c41f143e4"></script>
-<script src="game.js?v=5fd746282c"></script>
+<script src="game.js?v=fd8caf184a"></script>
 </body>
 </html>

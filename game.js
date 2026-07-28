@@ -5,9 +5,21 @@
    Vanilla JS + Canvas. Symboler: game-icons.net (CC BY 3.0)
    ============================================================ */
 
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 
 const CHANGELOG = [
+  {
+    version: '1.8.0',
+    date: '2026-07-28',
+    items: [
+      'Kameran följer bilen av sig själv medan hon kör — dra för att titta någon annanstans, och tryck på bilknappen för att följa igen.',
+      'Mål som ligger utanför skärmen visas som pilar i kanten med platsens symbol, så man aldrig tappar bort vart man ska.',
+      'Slimmad status uppe till vänster och en bottenrad med bara Kör och hastighet — gränssnittet täcker nu 18 % av skärmen i stället för 23 %.',
+      'Rensa flyttade in i körschemats rubrik och Börja om till menyn, där de hör hemma.',
+      'Körschemat fäller ihop sig till en liten flik när det är tomt och fälls ut när du lägger till ett stopp.',
+      'En ring visas där du tryckte på kartan, så du ser att trycket gick fram.'
+    ]
+  },
   {
     version: '1.7.0',
     date: '2026-07-28',
@@ -531,6 +543,7 @@ const game = {
   deliveries: [],
   route: [],
   places: new Set(),
+  follow: true,
   over: false,
   userPaused: false,
   truck: {
@@ -832,6 +845,7 @@ function setupLevel() {
   game.route = [];
   game.userPaused = false;
   queueSig = null;
+  lastQueueLen = -1;
   game.places = levelPlaces(lvl);
   game.deliveries = lvl.deliveries.map(d => Object.assign({}, d, { state: 'waiting' }));
   const t = game.truck;
@@ -1061,11 +1075,14 @@ function showSettingsModal() {
       '<b>' + (i + 1) + '</b><span>' + lv.title + '</span></button>';
   });
   html += '</div>' +
+    '<div class="btnrow"><button class="btn danger" id="restartBtn" type="button">' + iconSpan('retry') +
+    '<span class="lbl">Börja om uppdraget</span></button></div>' +
     '<p class="versionrow">Delivery Girl <b>v' + VERSION + '</b> · ' +
     '<button class="linkbtn" id="modalChangelog" type="button">vad som är nytt</button></p>' +
     '<div class="btnrow"><button class="btn primary" id="modalOk">' + iconSpan('check') + '<span class="lbl">Klar</span></button></div>';
   showModal(html);
   $('#modalChangelog').addEventListener('click', showChangelogModal);
+  $('#restartBtn').addEventListener('click', () => { toast('Uppdraget börjar om.', 'retry'); setupLevel(); });
   document.querySelectorAll('.modeopt[data-mode]').forEach(b => {
     b.addEventListener('click', () => { setMode(b.dataset.mode); showSettingsModal(); });
   });
@@ -1191,10 +1208,20 @@ function queueSignature() {
     '|' + (game.running ? 1 : 0) + '|' + game.truck.state;
 }
 
+let lastQueueLen = -1;
+
 function renderQueue() {
   const sig = queueSignature();
   if (sig === queueSig) { updateQueueProgress(); return; }
   queueSig = sig;
+
+  // Tom kö tar ingen plats; första stoppet fäller ut den igen
+  if (game.queue.length !== lastQueueLen) {
+    const panel = $('#queuePanel');
+    if (game.queue.length === 0) panel.classList.add('collapsed');
+    else if (lastQueueLen === 0) panel.classList.remove('collapsed');
+    lastQueueLen = game.queue.length;
+  }
 
   const ol = $('#queueList');
   ol.innerHTML = '';
@@ -1244,9 +1271,9 @@ function renderControls() {
     : iconSpan('play') + '<span class="lbl">' + (isRealtime() && !game.userPaused && !game.queue.length ? 'Starta' : 'Kör') + '</span>';
   play.disabled = game.over;
   $('#speedBtn').innerHTML = iconSpan('fast') + '<span class="lbl">' + game.speed + 'x</span>';
-  $('#clearBtn').innerHTML = iconSpan('trash') + '<span class="lbl">Rensa</span>';
-  $('#clearBtn').disabled = game.queue.length === 0;
-  $('#restartBtn').innerHTML = iconSpan('retry') + '<span class="lbl">Börja om</span>';
+  const clear = $('#clearBtn');
+  clear.innerHTML = iconSpan('trash');
+  clear.hidden = game.queue.length === 0;
 }
 
 function renderChips() {
@@ -1304,6 +1331,30 @@ function clampCam() {
   cam.y = loY > hiY ? CONTENT.y : clamp(cam.y, loY, hiY);
 }
 
+// Kameran följer bilen med en dödzon i mitten, så vyn bara glider med när
+// hon är på väg ut ur bild. Drar man själv släpper följningen.
+function followTruck(dt) {
+  const t = game.truck;
+  const halfW = viewW / (2 * cam.scale), halfH = viewH / (2 * cam.scale);
+  const dzx = halfW * 0.32, dzy = halfH * 0.32;
+  let tx = cam.x, ty = cam.y;
+  if (t.x < cam.x - dzx) tx = t.x + dzx;
+  else if (t.x > cam.x + dzx) tx = t.x - dzx;
+  if (t.y < cam.y - dzy) ty = t.y + dzy;
+  else if (t.y > cam.y + dzy) ty = t.y - dzy;
+  if (tx === cam.x && ty === cam.y) return;
+  const k = Math.min(1, dt * 3.5);
+  cam.x += (tx - cam.x) * k;
+  cam.y += (ty - cam.y) * k;
+  clampCam();
+}
+
+function setFollow(on) {
+  game.follow = on;
+  $('#followBtn').classList.toggle('active', on);
+  if (on) { cam.x = game.truck.x; cam.y = game.truck.y; clampCam(); }
+}
+
 // Världsrektangeln som just nu syns på skärmen
 function visibleRect() {
   const halfW = viewW / (2 * cam.scale), halfH = viewH / (2 * cam.scale);
@@ -1335,6 +1386,9 @@ function resetView() {
   viewW = window.innerWidth; viewH = window.innerHeight;
   cam.scale = defaultScale();
   cam.x = game.truck.x; cam.y = game.truck.y;
+  game.follow = true;
+  const fb = document.getElementById('followBtn');
+  if (fb) fb.classList.add('active');
   clampCam();
 }
 
@@ -1411,6 +1465,7 @@ const scenery = [];
 /* ---------- Rendering av kartan ---------- */
 
 let animTime = 0;
+let frameDt = 0;
 
 function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1427,9 +1482,14 @@ function draw() {
   for (const id of game.places) drawLocation(LOCATIONS[id]);
   drawLabels();
   drawRouteBadges();
+  drawPulses(frameDt);
   drawTruck();
 
   ctx.restore();
+
+  // Skärmrymd: pilar mot mål utanför vyn
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawOffscreenTargets();
 }
 
 // Vattnet fyller hela den synliga världsrektangeln, sedan läggs land ovanpå.
@@ -1890,6 +1950,22 @@ function drawLocation(loc) {
 // Bilen ritas rejält tilltagen så man alltid ser var hon är
 const truckSize = () => clamp(62 / cam.scale, 84, 210);
 
+// Liten ring där man tryckte, så man ser att trycket gick fram
+const pulses = [];
+function drawPulses(dt) {
+  for (let i = pulses.length - 1; i >= 0; i--) {
+    const p = pulses[i];
+    p.t += dt;
+    if (p.t > 0.55) { pulses.splice(i, 1); continue; }
+    const k = p.t / 0.55;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, (18 + k * 46) / cam.scale, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(246,185,59,' + (0.75 * (1 - k)).toFixed(3) + ')';
+    ctx.lineWidth = 4 / cam.scale;
+    ctx.stroke();
+  }
+}
+
 function drawTruck() {
   const t = game.truck;
   const ts = truckSize();
@@ -1915,6 +1991,74 @@ function drawTruck() {
     const col = warn && !busy ? '#c2503f' : '#c98a1e';
     drawSpeechBubble(t.x, t.y - ts * 0.5 - bs * 0.45, bubble, col, bs, 0, col);
   }
+}
+
+// Mål som ligger utanför vyn visas som pilar i kanten, annars är det lätt
+// att tappa bort vart man ska på den stora kartan.
+function drawOffscreenTargets() {
+  const ids = [];
+  const seen = new Set();
+  const push = id => { if (id && !seen.has(id) && game.places.has(id)) { seen.add(id); ids.push(id); } };
+  for (const q of game.queue) push(q.locId);
+  if (!ids.length) {
+    for (const d of game.deliveries) {
+      if (d.state === 'waiting') push(d.from);
+      else if (d.state === 'carried') push(d.to);
+    }
+  }
+  if (!ids.length) return;
+
+  const padX = 30, padTop = 118, padBot = 96;
+  const cx = viewW / 2, cy = viewH / 2;
+
+  const placed = [];
+  ids.slice(0, 3).forEach(id => {
+    const L = LOCATIONS[id];
+    const sx = (markerX(L) - cam.x) * cam.scale + cx;
+    const sy = (markerY(L) - cam.y) * cam.scale + cy;
+    if (sx > padX && sx < viewW - padX && sy > padTop && sy < viewH - padBot) return;
+
+    // Skär linjen från mitten mot målet mot vyns kant
+    const dx = sx - cx, dy = sy - cy;
+    const limX = viewW / 2 - padX, limY = (viewH - padTop - padBot) / 2;
+    const oy = (padTop - padBot) / 2;
+    const t = Math.min(Math.abs(limX / (dx || 1e-6)), Math.abs(limY / (dy || 1e-6)));
+    let ax = cx + dx * t, ay = cy + oy + dy * t;
+    const ang = Math.atan2(dy, dx);
+    const r = 21;
+    // Knuffa isär brickor som annars skulle hamna ovanpå varandra
+    for (const q of placed) {
+      const d = Math.hypot(ax - q.x, ay - q.y);
+      if (d < r * 2.3) {
+        const push = (r * 2.3 - d) + 2;
+        ax += (-dy / (Math.hypot(dx, dy) || 1)) * push;
+        ay += (dx / (Math.hypot(dx, dy) || 1)) * push;
+      }
+    }
+    placed.push({ x: ax, y: ay });
+
+    ctx.save();
+    ctx.translate(ax, ay);
+    // Pilspets utåt
+    ctx.save();
+    ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(r + 12, 0); ctx.lineTo(r - 1, 8); ctx.lineTo(r - 1, -8);
+    ctx.closePath();
+    ctx.fillStyle = '#f6b93b';
+    ctx.fill();
+    ctx.restore();
+    // Bricka med platsens symbol
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(16,20,27,0.92)';
+    ctx.fill();
+    ctx.strokeStyle = '#f6b93b';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.restore();
+    drawIcon(L.icon, L.color, ax, ay, r * 1.25);
+  });
 }
 
 /* ---------- Panorering, zoom och tryck ---------- */
@@ -1959,6 +2103,7 @@ canvas.addEventListener('pointermove', ev => {
   } else if (dragAnchor) {
     const dx = ev.clientX - dragAnchor.x, dy = ev.clientY - dragAnchor.y;
     moveDist += Math.hypot(dx, dy);
+    if (moveDist > 14 && game.follow) setFollow(false);
     cam.x -= dx / cam.scale;
     cam.y -= dy / cam.scale;
     clampCam();
@@ -1975,6 +2120,7 @@ function endPointer(ev) {
     if (moveDist < 14 && performance.now() - downTime < 650) {
       const p = screenToWorld(ev.clientX, ev.clientY);
       const id = locationAt(p.x, p.y);
+      pulses.push({ x: p.x, y: p.y, t: 0 });
       if (id) queueLocation(id);
     }
     dragAnchor = null;
@@ -2025,7 +2171,8 @@ $('#speedBtn').addEventListener('click', () => {
   renderControls();
 });
 $('#clearBtn').addEventListener('click', clearQueue);
-$('#restartBtn').addEventListener('click', () => { toast('Uppdraget börjar om.', 'retry'); setupLevel(); });
+$('#followBtn').innerHTML = ICONS.truck ? '<span class="icon">' + ICONS.truck + '</span>' : '';
+$('#followBtn').addEventListener('click', () => setFollow(!game.follow));
 $('#questChip').addEventListener('click', () => showQuestModal(false));
 $('#settingsBtn').addEventListener('click', () => {
   if (game.running) { game.running = false; game.userPaused = true; renderControls(); }
@@ -2070,6 +2217,8 @@ function frame(now) {
   const dt = Math.min(0.1, (now - lastTime) / 1000);
   lastTime = now;
   animTime += dt;
+  frameDt = dt;
+  if (game.follow && !modalOpen()) followTruck(dt);
   tick(dt);
   hudAccum += dt;
   if (hudAccum > 0.12) {
@@ -2083,7 +2232,7 @@ function frame(now) {
 /* ---------- Start ---------- */
 
 game.levelIndex = Math.min(run.level, LEVELS.length - 1);
-if (window.innerWidth < 560) $('#queuePanel').classList.add('collapsed');
+$('#queuePanel').classList.add('collapsed');
 resizeCanvas();
 fitView();
 renderAll();

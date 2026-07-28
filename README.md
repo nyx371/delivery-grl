@@ -29,12 +29,13 @@ Spelplanen är en hel stad med Stockholm som inspiration: sex stadsdelar — cit
 
 Platserna ligger utspridda över hela stan, så en enda leverans kan gå från Djurgården i öster till Söder och kräva laddstopp på vägen. Fyra laddstationer, två matställen och två ställen att sova på finns spridda över stadsdelarna.
 
-Kartan börjar centrerad på bilen och fyller hela webbläsarfönstret oavsett skärmform. Dra för att panorera, nyp eller scrolla för att zooma; knapparna nere till höger zoomar in, ut och ramar in hela stan. Gatunamnen dyker upp när du zoomar in, och skyltarna växer när du zoomar ut så att de går att se och träffa även i översikt.
+Kartan börjar centrerad på bilen och **kameran följer henne** medan hon kör. Dra för att titta någon annanstans — då släpper följningen — och tryck på bilknappen nere till höger för att följa igen. Mål som hamnar utanför skärmen visas som pilar i kanten med platsens symbol. Nyp eller scrolla för att zooma; knapparna nere till höger zoomar in, ut och ramar in hela stan. Gatunamnen dyker upp när du zoomar in, och skyltarna växer när du zoomar ut så att de går att se och träffa även i översikt.
 
 ## Teknik
 
 - Vanilla JS + Canvas, en enda statisk sida (`index.html`, `style.css`, `game.js`, `icons.js`).
 - Dubbeltryck-zoom, nyp-zoom på sidan, textmarkering och iOS-förstoringsglas är avstängda för en app-lik känsla på mobil. Knappar och träffytor är tumstora på pekskärmar, och träffytan för en plats mäts i skärmpixlar så den är lika lätt att träffa vid alla zoomnivåer.
+- Mobilanpassat gränssnitt: slimmad status, en bottenrad med bara Kör och hastighet, ett körschema som fäller ihop sig när det är tomt, och en ring som kvitterar varje tryck på kartan. Sammanlagt täcker gränssnittet 18 % av en telefonskärm.
 - Minimalt gränssnitt: pengarna visas i butiken och versionsnumret med ändringslogg i inställningsmenyn.
 - **Cache-busting:** `tools/cache-bust.js` stämplar innehållshashar på `style.css`, `icons.js` och `game.js` i `index.html`. Det körs automatiskt vid varje push av `.github/workflows/cache-bust.yml`, som committar tillbaka uppdaterade hashar när något ändrats. Kör det lokalt med `node tools/cache-bust.js`, eller aktivera pre-commit-hooken en gång per klon med `git config core.hooksPath .githooks` så stämplas det redan vid commit.
 
