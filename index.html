@@ -2,58 +2,71 @@
 <html lang="sv">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="description" content="GRL Transport — ett strategiskt planeringsspel där du styr en transportbil.">
-<title>GRL Transport</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="description" content="Delivery Girl — ett varmt strategiskt planeringsspel om leveranser i en liten stad.">
+<meta name="theme-color" content="#14181f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Delivery Girl</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<header id="topbar">
-  <div class="brand">
-    <span class="icon" id="brandIcon"></span>
-    <h1>GRL&nbsp;Transport</h1>
+<canvas id="map"></canvas>
+
+<div id="hud">
+
+  <!-- Status överst till vänster, ovanpå kartan -->
+  <div id="statusOverlay" class="glass">
+    <div class="bars" id="bars"></div>
+    <div id="cargoRow" class="cargorow"></div>
   </div>
-  <div class="topstats">
-    <span class="stat" id="levelStat" title="Nivå"></span>
-    <span class="stat money" id="moneyStat" title="Pengar"></span>
-    <button class="chip" id="shopBtn" type="button"></button>
-    <button class="chip version" id="versionBtn" type="button"></button>
+
+  <!-- Uppdrag överst till höger -->
+  <div id="hudRight">
+    <button id="questChip" class="glass questchip" type="button">
+      <span class="qc-head"><span class="icon" data-icon="quest"></span><span id="qcTitle"></span></span>
+      <span class="qc-body" id="qcBody"></span>
+    </button>
+    <div class="chiprow">
+      <span class="chip money" id="moneyChip"></span>
+      <button class="chip" id="shopBtn" type="button" aria-label="Butik"></button>
+      <button class="chip subtle" id="versionBtn" type="button"></button>
+    </div>
   </div>
-</header>
 
-<main id="layout">
-  <section id="mapWrap">
-    <canvas id="map"></canvas>
-    <div id="toasts"></div>
-  </section>
-
-  <aside id="panel">
-    <section class="card" id="taskCard">
-      <h2><span class="icon" data-icon="box"></span> Uppdrag</h2>
-      <p id="taskBrief"></p>
-      <ul id="objectives" class="objectives"></ul>
-      <div id="timeRow" class="timerow"></div>
-    </section>
-
-    <section class="card" id="resourceCard">
-      <h2><span class="icon" data-icon="wheel"></span> Status</h2>
-      <div class="bars" id="bars"></div>
-      <div id="cargoRow" class="cargorow"></div>
-    </section>
-
-    <section class="card" id="queueCard">
-      <h2><span class="icon" data-icon="path"></span> Körschema</h2>
+  <!-- Körschema -->
+  <div id="queuePanel" class="glass">
+    <button id="queueToggle" class="queuehead" type="button">
+      <span class="icon" data-icon="path"></span>
+      <span class="qh-title">Körschema</span>
+      <span class="qh-count" id="queueCount">0</span>
+      <span class="qh-caret" id="queueCaret">▾</span>
+    </button>
+    <div id="queueBody">
       <p class="hint" id="queueHint">Tryck på en plats på kartan för att lägga till ett stopp.</p>
       <ol id="queueList" class="queue"></ol>
-      <div class="controls">
-        <button id="playBtn" class="btn primary" type="button"></button>
-        <button id="speedBtn" class="btn" type="button"></button>
-        <button id="clearBtn" class="btn danger" type="button"></button>
-      </div>
-    </section>
-  </aside>
-</main>
+    </div>
+  </div>
+
+  <!-- Zoomreglage -->
+  <div id="zoomCluster">
+    <button class="zbtn glass" id="zoomIn" type="button" aria-label="Zooma in">+</button>
+    <button class="zbtn glass" id="zoomOut" type="button" aria-label="Zooma ut">−</button>
+    <button class="zbtn glass" id="zoomFit" type="button" aria-label="Visa hela kartan"></button>
+  </div>
+
+  <!-- Flytande kontrollrad längst ned -->
+  <div id="bottomBar" class="glass">
+    <button id="playBtn" class="btn primary" type="button"></button>
+    <button id="speedBtn" class="btn" type="button"></button>
+    <button id="clearBtn" class="btn" type="button"></button>
+    <button id="restartBtn" class="btn danger" type="button"></button>
+  </div>
+
+  <div id="toasts"></div>
+</div>
 
 <div id="modalBackdrop" class="hidden">
   <div id="modal" role="dialog" aria-modal="true"></div>

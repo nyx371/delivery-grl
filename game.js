@@ -1,13 +1,29 @@
 'use strict';
 
 /* ============================================================
-   GRL Transport — strategiskt planeringsspel
-   Vanilla JS, inga beroenden. Symboler: game-icons.net (CC BY 3.0)
+   Delivery Girl — ett varmt strategiskt planeringsspel
+   Vanilla JS + Canvas. Symboler: game-icons.net (CC BY 3.0)
    ============================================================ */
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 
 const CHANGELOG = [
+  {
+    version: '1.1.0',
+    date: '2026-07-28',
+    items: [
+      'Kartan går att panorera och zooma — dra för att flytta, nyp eller scrolla för att zooma.',
+      'Kartan fyller hela skärmen och fungerar lika bra stående som liggande.',
+      'Tydligare färdväg med riktningspilar, numrerade stopp och markerad aktiv sträcka.',
+      'Status (batteri, energi, mat och last) ligger nu som överlägg ovanpå kartan.',
+      'Mätarna fylls med färgzoner — rött när det börjar ta slut, grönt när det är gott om.',
+      'Flytande kontrollrad längst ned med Kör, hastighet, rensa och ny omstartsknapp.',
+      'Uppdragsrutan uppe till höger — tryck på den för hela historien, som också visas vid nivåstart.',
+      'Berättelse och personer: du är Delivery Girl och hjälper Greta, Rosa, Enzo, Majken, Gustav, Bengt och Vera.',
+      'Husen ligger vid vägkorsningarna med egna infarter, och kartan har fått kust, åkrar och skog.',
+      'Snävare tidsgränser, och långpassen börjar med trött förare så att mat- och sovstopp spelar roll.'
+    ]
+  },
   {
     version: '1.0.0',
     date: '2026-07-28',
@@ -22,46 +38,38 @@ const CHANGELOG = [
   }
 ];
 
-/* ---------- Värld & vägnät ---------- */
+/* ---------- Världen ---------- */
 
-const W = 960, H = 640;
-const GRID_X = [90, 300, 510, 720, 880];
-const GRID_Y = [90, 250, 410, 560];
+const W = 1180, H = 1040;
+const GRID_X = [140, 440, 740, 1040];
+const GRID_Y = [130, 390, 650, 910];
+const COAST_X = 1092;
 
 function nodeKey(x, y) { return x + ',' + y; }
+function keyToPoint(k) { const p = k.split(','); return { x: +p[0], y: +p[1] }; }
 
-const graph = {}; // key -> [{key, dist}]
+const graph = {};
 (function buildGraph() {
   for (const x of GRID_X) for (const y of GRID_Y) graph[nodeKey(x, y)] = [];
+  const link = (a, b, d) => { graph[a].push({ key: b, dist: d }); graph[b].push({ key: a, dist: d }); };
   for (let i = 0; i < GRID_X.length; i++) {
     for (let j = 0; j < GRID_Y.length; j++) {
-      const a = nodeKey(GRID_X[i], GRID_Y[j]);
-      if (i + 1 < GRID_X.length) {
-        const b = nodeKey(GRID_X[i + 1], GRID_Y[j]);
-        const d = GRID_X[i + 1] - GRID_X[i];
-        graph[a].push({ key: b, dist: d });
-        graph[b].push({ key: a, dist: d });
-      }
-      if (j + 1 < GRID_Y.length) {
-        const b = nodeKey(GRID_X[i], GRID_Y[j + 1]);
-        const d = GRID_Y[j + 1] - GRID_Y[j];
-        graph[a].push({ key: b, dist: d });
-        graph[b].push({ key: a, dist: d });
-      }
+      if (i + 1 < GRID_X.length) link(nodeKey(GRID_X[i], GRID_Y[j]), nodeKey(GRID_X[i + 1], GRID_Y[j]), GRID_X[i + 1] - GRID_X[i]);
+      if (j + 1 < GRID_Y.length) link(nodeKey(GRID_X[i], GRID_Y[j]), nodeKey(GRID_X[i], GRID_Y[j + 1]), GRID_Y[j + 1] - GRID_Y[j]);
     }
   }
 })();
 
+const pathCache = {};
 function shortestPath(fromKey, toKey) {
-  if (fromKey === toKey) return { path: [fromKey], dist: 0 };
+  const ck = fromKey + '>' + toKey;
+  if (pathCache[ck]) return pathCache[ck];
   const dist = {}, prev = {}, visited = {};
   for (const k in graph) dist[k] = Infinity;
   dist[fromKey] = 0;
-  while (true) {
+  for (;;) {
     let cur = null, best = Infinity;
-    for (const k in graph) {
-      if (!visited[k] && dist[k] < best) { best = dist[k]; cur = k; }
-    }
+    for (const k in graph) if (!visited[k] && dist[k] < best) { best = dist[k]; cur = k; }
     if (cur === null || cur === toKey) break;
     visited[cur] = true;
     for (const e of graph[cur]) {
@@ -72,26 +80,50 @@ function shortestPath(fromKey, toKey) {
   const path = [];
   let k = toKey;
   while (k) { path.unshift(k); k = prev[k]; }
-  return { path, dist: dist[toKey] };
+  const res = { path, dist: dist[toKey] };
+  pathCache[ck] = res;
+  return res;
 }
 
-function keyToPoint(k) {
-  const [x, y] = k.split(',').map(Number);
-  return { x, y };
-}
-
-/* ---------- Platser ---------- */
+/* ---------- Personer & platser ---------- */
 
 const LOCATIONS = {
-  depot:    { id: 'depot',    name: 'Depån',            icon: 'house',   color: '#f6b93b', x: 90,  y: 560 },
-  rosen:    { id: 'rosen',    name: 'Restaurang Rosen', icon: 'chef',    color: '#e57fa3', x: 510, y: 90 },
-  masen:    { id: 'masen',    name: 'Restaurang Måsen', icon: 'chef',    color: '#8fd3f4', x: 880, y: 250 },
-  eken:     { id: 'eken',     name: 'Restaurang Eken',  icon: 'chef',    color: '#a3d977', x: 720, y: 560 },
-  grossist: { id: 'grossist', name: 'Grossisten',       icon: 'crate',   color: '#c9a066', x: 300, y: 90 },
-  laddNord: { id: 'laddNord', name: 'Laddstation Nord', icon: 'gasPump', color: '#57c26b', x: 300, y: 250, service: 'charge' },
-  laddSyd:  { id: 'laddSyd',  name: 'Laddstation Syd',  icon: 'gasPump', color: '#57c26b', x: 510, y: 410, service: 'charge' },
-  krog:     { id: 'krog',     name: 'Vägkrogen',        icon: 'burger',  color: '#f0913d', x: 90,  y: 250, service: 'eat' },
-  motell:   { id: 'motell',   name: 'Motell Vilan',     icon: 'bed',     color: '#b18ae0', x: 880, y: 560, service: 'sleep' }
+  depot: {
+    id: 'depot', name: 'Depån', who: 'Mormor Greta', icon: 'house', color: '#f6b93b',
+    x: 140, y: 910, ox: 66, oy: -66, blurb: 'Ditt garage och ditt hem. Greta packar lådorna och har alltid kaffe på.'
+  },
+  grossist: {
+    id: 'grossist', name: 'Grossisten', who: 'Gustav', icon: 'crate', color: '#c9a066',
+    x: 140, y: 130, ox: 66, oy: 66, blurb: 'Gustav kan varje låda vid namn och vinkar med hela armen när du kommer.'
+  },
+  rosen: {
+    id: 'rosen', name: 'Restaurang Rosen', who: 'Rosa', icon: 'chef', color: '#f28fb1',
+    x: 740, y: 130, ox: 66, oy: 66, blurb: 'Rosa bakar kanelbullar som tar slut på tjugo minuter. Hon är alltid lite nervös.'
+  },
+  masen: {
+    id: 'masen', name: 'Restaurang Måsen', who: 'Majken', icon: 'cook', color: '#8fd3f4',
+    x: 1040, y: 390, ox: -66, oy: 66, blurb: 'Skaldjur vid vattnet. Katten Sill sitter i fönstret och väntar på dig.'
+  },
+  eken: {
+    id: 'eken', name: 'Restaurang Eken', who: 'Enzo', icon: 'chef', color: '#a3d977',
+    x: 740, y: 910, ox: -66, oy: -66, blurb: 'Enzo sjunger opera medan han knådar pizzadeg. Grannarna har vant sig.'
+  },
+  laddNord: {
+    id: 'laddNord', name: 'Laddstation Nord', who: null, icon: 'gasPump', color: '#57c26b',
+    x: 440, y: 390, ox: 66, oy: -66, service: 'charge', blurb: 'Snabbladdare mellan åkrarna. Fågelsång ingår.'
+  },
+  laddSyd: {
+    id: 'laddSyd', name: 'Laddstation Syd', who: null, icon: 'gasPump', color: '#57c26b',
+    x: 740, y: 650, ox: -66, oy: 66, service: 'charge', blurb: 'Laddaren vid rondellen. Alltid en ledig plats.'
+  },
+  krog: {
+    id: 'krog', name: 'Vägkrogen', who: 'Bengt', icon: 'burger', color: '#f0913d',
+    x: 140, y: 650, ox: 66, oy: 66, service: 'eat', blurb: 'Bengt håller en tallrik köttbullar varm åt dig. Varje dag.'
+  },
+  motell: {
+    id: 'motell', name: 'Motell Vilan', who: 'Vera', icon: 'bed', color: '#b18ae0',
+    x: 1040, y: 910, ox: -66, oy: -66, service: 'sleep', blurb: 'Vera bäddar rent och väcker dig med termosen fylld.'
+  }
 };
 
 const SERVICE_TEXT = {
@@ -105,107 +137,107 @@ const SERVICE_TEXT = {
 const LEVELS = [
   {
     title: 'Första körningen',
-    brief: 'Välkommen till GRL Transport! Hämta matlådan på Depån, leverera den till Restaurang Rosen och kör sedan tillbaka hem.',
+    story: 'Det är din första dag med den lilla eldrivna lastbilen. Mormor Greta har packat en låda nybakade kanelbullar och knutit ett snöre runt den. "Rosa har öppning i dag och är nervös som en fågelunge. Ta med de här, så ordnar sig resten." Kör dit, lämna lådan och kom hem till kaffet.',
     timeLimit: null, reward: 450,
-    deliveries: [ { from: 'depot', to: 'rosen', label: 'Matlådor' } ],
+    deliveries: [{ from: 'depot', to: 'rosen', label: 'Kanelbullar', icon: 'cupcake' }],
     returnHome: true
   },
   {
     title: 'Två beställningar',
-    brief: 'Två restauranger väntar på varor från Depån. Flaket rymmer bara en last i taget, så planera rutten klokt.',
+    story: 'Rosa ringde och skrattade rakt in i luren — bullarna tog slut på tjugo minuter. Nu vill hon ha grönsaker. Och Enzo på Eken har glömt beställa bröd till kvällens pizzakväll igen. Två lådor, ett flak: det blir två vändor, om du inte hunnit köpa ett större.',
     timeLimit: 70, reward: 550,
     deliveries: [
-      { from: 'depot', to: 'rosen', label: 'Grönsaker' },
-      { from: 'depot', to: 'eken',  label: 'Färskt bröd' }
+      { from: 'depot', to: 'rosen', label: 'Grönsaker', icon: 'flowers' },
+      { from: 'depot', to: 'eken', label: 'Färskt bröd', icon: 'bread' }
     ],
     returnHome: true
   },
   {
     title: 'Grossistens varor',
-    brief: 'Grossisten har varor som ska ut till stan. Håll ett öga på batteriet — det kan behövas ett laddstopp på vägen.',
-    timeLimit: 90, reward: 650,
+    story: 'Gustav står i porten och vinkar med en fisklåda över huvudet. "Till Majken vid vattnet! Och kryddorna till Rosa — glöm inte kryddorna, hon blir ledsen annars." Det är en bit att köra, så håll ett öga på batteriet.',
+    timeLimit: 72, reward: 650,
     deliveries: [
-      { from: 'grossist', to: 'masen', label: 'Fiskleverans' },
-      { from: 'grossist', to: 'rosen', label: 'Kryddor' }
+      { from: 'grossist', to: 'masen', label: 'Fiskleverans', icon: 'fish' },
+      { from: 'grossist', to: 'rosen', label: 'Kryddor', icon: 'flowerPot' }
     ],
     returnHome: true
   },
   {
     title: 'Lunchrusningen',
-    brief: 'Alla tre restauranger behöver varor före lunch. Klockan tickar!',
+    story: 'Kvart i elva och tre kök väntar. Rosa har pastavattnet kokande, Enzo skriker opera över salladsskålen och Majken har lovat räkor till ett dopfölje som redan sitter vid borden. Ingen press alls.',
     timeLimit: 110, reward: 800,
     deliveries: [
-      { from: 'depot', to: 'rosen', label: 'Pastalådor' },
-      { from: 'depot', to: 'eken',  label: 'Sallad' },
-      { from: 'depot', to: 'masen', label: 'Räkor' }
+      { from: 'depot', to: 'rosen', label: 'Pastalådor', icon: 'box' },
+      { from: 'depot', to: 'eken', label: 'Sallad', icon: 'flowers' },
+      { from: 'depot', to: 'masen', label: 'Räkor', icon: 'fish' }
     ],
     returnHome: true
   },
   {
     title: 'Långpasset',
-    brief: 'Ett långt arbetspass med varor från Grossisten till hela stan. Glöm inte att äta och vila — en trött förare är en farlig förare.',
-    timeLimit: 150, reward: 950,
+    story: 'Ett långt pass med varor från Gustav till hela stan. Bengt på Vägkrogen har lovat hålla en tallrik köttbullar varm åt dig, och Vera på Motell Vilan bäddar alltid rent. Ta hand om dig själv också — du hjälper ingen om du somnar vid ratten.',
+    timeLimit: 115, reward: 950, startEnergy: 65, startFood: 60,
     deliveries: [
-      { from: 'grossist', to: 'rosen', label: 'Mjöl' },
-      { from: 'grossist', to: 'eken',  label: 'Ost' },
-      { from: 'grossist', to: 'masen', label: 'Oliver' }
+      { from: 'grossist', to: 'rosen', label: 'Mjöl', icon: 'bread' },
+      { from: 'grossist', to: 'eken', label: 'Ost', icon: 'box' },
+      { from: 'grossist', to: 'masen', label: 'Oliver', icon: 'flowerPot' }
     ],
     returnHome: true
   },
   {
     title: 'Dubbelbokat',
-    brief: 'Två brådskande körningar från olika håll — en från Depån och en från Grossisten. Snäv tidsgräns!',
+    story: 'Två brådskande körningar samtidigt. Majken ska ha catering till hamnfesten och Enzo har fått slut på dricka mitt i fredagsrusningen. Sill sitter redan i fönstret på Måsen och spanar efter din lastbil.',
     timeLimit: 60, reward: 900,
     deliveries: [
-      { from: 'depot',    to: 'masen', label: 'Cateringlåda' },
-      { from: 'grossist', to: 'eken',  label: 'Drycker' }
+      { from: 'depot', to: 'masen', label: 'Cateringlåda', icon: 'box' },
+      { from: 'grossist', to: 'eken', label: 'Drycker', icon: 'wine' }
     ],
     returnHome: true
   },
   {
     title: 'Fullt schema',
-    brief: 'Beställningar från både Depån och Grossisten. Planera hämtningar och lämningar i rätt ordning.',
-    timeLimit: 120, reward: 1100,
+    story: 'Porslin, kött och grönsaker. Rosa har fått en ny servis som står och väntar i Depån, och Enzo viskar att han provlagar något nytt i kväll. Han vill inte säga vad, bara att du måste komma och smaka.',
+    timeLimit: 78, reward: 1100,
     deliveries: [
-      { from: 'depot',    to: 'rosen', label: 'Porslin' },
-      { from: 'depot',    to: 'eken',  label: 'Kött' },
-      { from: 'grossist', to: 'masen', label: 'Grönsaker' }
+      { from: 'depot', to: 'rosen', label: 'Porslin', icon: 'box' },
+      { from: 'depot', to: 'eken', label: 'Kött', icon: 'pizza' },
+      { from: 'grossist', to: 'masen', label: 'Grönsaker', icon: 'flowers' }
     ],
     returnHome: true
   },
   {
     title: 'Storleveransen',
-    brief: 'Grossisten tömmer lagret — fyra leveranser ska ut. Ett större flak gör livet lättare, annars blir det många vändor.',
-    timeLimit: 170, reward: 1300,
+    story: 'Gustav tömmer lagret inför inventeringen och har staplat lådor ända ut på gården. "Ta allt du orkar, tjejen — och kom tillbaka efter mer!" Fyra leveranser, och ett flak som kanske är för litet.',
+    timeLimit: 140, reward: 1300, startEnergy: 65,
     deliveries: [
-      { from: 'grossist', to: 'rosen', label: 'Konserver' },
-      { from: 'grossist', to: 'masen', label: 'Frukt' },
-      { from: 'grossist', to: 'eken',  label: 'Kaffe' },
-      { from: 'depot',    to: 'masen', label: 'Servetter' }
+      { from: 'grossist', to: 'rosen', label: 'Konserver', icon: 'fish' },
+      { from: 'grossist', to: 'masen', label: 'Frukt', icon: 'flowers' },
+      { from: 'grossist', to: 'eken', label: 'Kaffe', icon: 'coffee' },
+      { from: 'depot', to: 'masen', label: 'Servetter', icon: 'box' }
     ],
     returnHome: true
   },
   {
     title: 'Expressrundan',
-    brief: 'Tre leveranser på rekordtid. Varje minut räknas — undvik onödiga omvägar.',
-    timeLimit: 85, reward: 1500,
+    story: 'Det är Sills födelsedag — ja, katten — och Majken har beställt skaldjur till kalaset. Rosa har en tårta som måste fram innan den smälter, och Enzo väntar på glassen. Spring, Delivery Girl. Spring.',
+    timeLimit: 70, reward: 1500,
     deliveries: [
-      { from: 'depot',    to: 'rosen', label: 'Tårtor' },
-      { from: 'grossist', to: 'masen', label: 'Skaldjur' },
-      { from: 'depot',    to: 'eken',  label: 'Glass' }
+      { from: 'depot', to: 'rosen', label: 'Tårtor', icon: 'cupcake' },
+      { from: 'grossist', to: 'masen', label: 'Skaldjur', icon: 'fish' },
+      { from: 'depot', to: 'eken', label: 'Glass', icon: 'cupcake' }
     ],
     returnHome: true
   },
   {
     title: 'Maratonrundan',
-    brief: 'Sista uppdraget: fem leveranser över hela kartan. Använd allt du lärt dig — ladda, ät och sov i rätt läge.',
-    timeLimit: 220, reward: 2000,
+    story: 'Stadens sommarfest. Alla behöver allt, samtidigt, och alla ler mot dig när du svänger in på gården. Greta har hängt upp en flagga på Depån. Sista rundan innan lyktorna tänds på torget — kör den fint.',
+    timeLimit: 190, reward: 2000, startEnergy: 70, startFood: 60,
     deliveries: [
-      { from: 'grossist', to: 'rosen', label: 'Mjölk' },
-      { from: 'grossist', to: 'eken',  label: 'Ägg' },
-      { from: 'depot',    to: 'masen', label: 'Blommor' },
-      { from: 'depot',    to: 'rosen', label: 'Vin' },
-      { from: 'grossist', to: 'masen', label: 'Choklad' }
+      { from: 'grossist', to: 'rosen', label: 'Mjölk', icon: 'box' },
+      { from: 'grossist', to: 'eken', label: 'Ägg', icon: 'box' },
+      { from: 'depot', to: 'masen', label: 'Blommor', icon: 'sunflower' },
+      { from: 'depot', to: 'rosen', label: 'Vin', icon: 'wine' },
+      { from: 'grossist', to: 'masen', label: 'Choklad', icon: 'cupcake' }
     ],
     returnHome: true
   }
@@ -214,29 +246,29 @@ const LEVELS = [
 /* ---------- Uppgraderingar ---------- */
 
 const UPGRADES = {
-  batteryCap:  { name: 'Större batteri',  icon: 'batteryPack', desc: '+40 batterikapacitet per nivå.', costs: [500, 900, 1400] },
-  chargeSpeed: { name: 'Snabbladdning',   icon: 'charge',      desc: 'Batteriet laddar dubbelt så snabbt per nivå.', costs: [400, 800] },
-  cargo:       { name: 'Större flak',     icon: 'box',         desc: '+1 lastplats per nivå.', costs: [600, 1000, 1500] },
-  thermos:     { name: 'Kaffetermos',     icon: 'coffee',      desc: 'Energin räcker 25 % längre per nivå.', costs: [450, 850] },
-  coolbox:     { name: 'Kylbox',          icon: 'meal',        desc: 'Maten räcker 25 % längre per nivå.', costs: [350, 700] }
+  batteryCap:  { name: 'Större batteri', icon: 'batteryPack', desc: '+40 batterikapacitet per nivå.', costs: [500, 900, 1400] },
+  chargeSpeed: { name: 'Snabbladdning',  icon: 'charge',      desc: 'Dubbelt så snabb laddning per nivå.', costs: [400, 800] },
+  cargo:       { name: 'Större flak',    icon: 'box',         desc: '+1 lastplats per nivå.', costs: [600, 1000, 1500] },
+  thermos:     { name: 'Kaffetermos',    icon: 'coffee',      desc: 'Energin räcker 25 % längre per nivå.', costs: [450, 850] },
+  coolbox:     { name: 'Kylbox',         icon: 'meal',        desc: 'Maten räcker 25 % längre per nivå.', costs: [350, 700] }
 };
 
 /* ---------- Balans ---------- */
 
 const BAL = {
-  truckSpeed: 130,          // px per verklig sekund (1x)
-  minutesPerSecond: 1,      // spelminuter per verklig sekund (1x)
+  truckSpeed: 200,
+  minutesPerSecond: 1,
   batteryBase: 100,
   batteryPerUpgrade: 40,
-  batteryDrainPer100px: 3.5,
-  chargeRate: 5,            // batteri per spelminut (grundnivå)
+  batteryDrainPer100px: 2.4,
+  chargeRate: 5,
   energyMax: 100,
-  energyDrainDrive: 0.8,    // per spelminut vid körning
+  energyDrainDrive: 0.8,
   energyDrainIdle: 0.35,
-  sleepRate: 6,             // energi per spelminut
+  sleepRate: 6,
   foodMax: 100,
-  foodDrain: 0.45,          // per spelminut
-  eatRate: 12               // mat per spelminut
+  foodDrain: 0.45,
+  eatRate: 12
 };
 
 /* ---------- Sparning ---------- */
@@ -244,14 +276,8 @@ const BAL = {
 const SAVE_KEY = 'grl-transport-save';
 
 function defaultSave() {
-  return {
-    level: 0,
-    money: 0,
-    upgrades: { batteryCap: 0, chargeSpeed: 0, cargo: 0, thermos: 0, coolbox: 0 },
-    finished: false
-  };
+  return { level: 0, money: 0, upgrades: { batteryCap: 0, chargeSpeed: 0, cargo: 0, thermos: 0, coolbox: 0 }, finished: false };
 }
-
 function loadSave() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -259,128 +285,124 @@ function loadSave() {
     const s = Object.assign(defaultSave(), JSON.parse(raw));
     s.upgrades = Object.assign(defaultSave().upgrades, s.upgrades);
     return s;
-  } catch (e) {
-    return defaultSave();
-  }
+  } catch (e) { return defaultSave(); }
 }
-
-function persist() {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* privat läge m.m. */ }
-}
+function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) { /* privat läge */ } }
 
 let save = loadSave();
 
 /* ---------- Speltillstånd ---------- */
 
 const game = {
-  levelIndex: save.level,
+  levelIndex: 0,
   running: false,
   speed: 1,
-  clock: 0,           // spelminuter sedan start av nivån
-  queue: [],          // [{locId, service}]
-  deliveries: [],     // [{from,to,label,state:'waiting'|'carried'|'done'}]
-  over: false,        // nivån avslutad (lyckad/misslyckad)
+  clock: 0,
+  queue: [],
+  deliveries: [],
+  route: [],
+  over: false,
   truck: {
     x: LOCATIONS.depot.x, y: LOCATIONS.depot.y,
     atNode: nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y),
-    path: [], pathIndex: 0,
-    facing: 1,
-    state: 'idle',    // idle | driving | charge | eat | sleep
+    path: [], pathIndex: 0, facing: 1,
+    state: 'idle',
     battery: 100, energy: 100, food: 100
   }
 };
 
-function batteryMax() { return BAL.batteryBase + save.upgrades.batteryCap * BAL.batteryPerUpgrade; }
-function cargoMax() { return 1 + save.upgrades.cargo; }
-function chargeRate() { return BAL.chargeRate * Math.pow(2, save.upgrades.chargeSpeed); }
-function energyFactor() { return Math.pow(0.75, save.upgrades.thermos); }
-function foodFactor() { return Math.pow(0.75, save.upgrades.coolbox); }
+const batteryMax = () => BAL.batteryBase + save.upgrades.batteryCap * BAL.batteryPerUpgrade;
+const cargoMax = () => 1 + save.upgrades.cargo;
+const chargeRate = () => BAL.chargeRate * Math.pow(2, save.upgrades.chargeSpeed);
+const energyFactor = () => Math.pow(0.75, save.upgrades.thermos);
+const foodFactor = () => Math.pow(0.75, save.upgrades.coolbox);
+const currentLevel = () => LEVELS[game.levelIndex];
+const carriedCount = () => game.deliveries.filter(d => d.state === 'carried').length;
 
-function currentLevel() { return LEVELS[game.levelIndex]; }
-function carriedCount() { return game.deliveries.filter(d => d.state === 'carried').length; }
-
-/* ---------- DOM-hjälpare ---------- */
+/* ---------- DOM ---------- */
 
 const $ = sel => document.querySelector(sel);
-
+const iconSpan = name => '<span class="icon">' + ICONS[name] + '</span>';
 function el(tag, cls, html) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
   if (html !== undefined) e.innerHTML = html;
   return e;
 }
-
-function iconSpan(name) { return '<span class="icon">' + ICONS[name] + '</span>'; }
-
 document.querySelectorAll('[data-icon]').forEach(n => { n.innerHTML = ICONS[n.dataset.icon]; });
-$('#brandIcon').innerHTML = ICONS.truck;
-
-/* ---------- Ikonbilder för kartan ---------- */
 
 const iconImageCache = {};
 function iconImage(name, color) {
   const key = name + '|' + color;
   if (!iconImageCache[key]) {
-    const svg = ICONS[name].replace('fill="currentColor"', 'fill="' + color + '"');
     const img = new Image();
-    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(ICONS[name].replace('fill="currentColor"', 'fill="' + color + '"'));
     iconImageCache[key] = img;
   }
   return iconImageCache[key];
 }
-
-/* ---------- Toasts ---------- */
-
-function toast(msg, icon) {
-  const t = el('div', 'toast', (icon ? iconSpan(icon) + ' ' : '') + msg);
-  $('#toasts').appendChild(t);
-  setTimeout(() => t.remove(), 3600);
+function drawIcon(name, color, cx, cy, size) {
+  const img = iconImage(name, color);
+  if (img.complete && img.naturalWidth) ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
 }
 
-/* ---------- Kö-logik ---------- */
+function toast(msg, icon) {
+  const box = $('#toasts');
+  const t = el('div', 'toast', (icon ? iconSpan(icon) : '') + '<span>' + msg + '</span>');
+  box.appendChild(t);
+  while (box.childElementCount > 3) box.firstElementChild.remove();
+  setTimeout(() => t.remove(), 3300);
+}
+
+/* ---------- Kö ---------- */
 
 function queueLocation(locId) {
   if (game.over) return;
   const loc = LOCATIONS[locId];
-  const last = game.queue.length ? game.queue[game.queue.length - 1] : null;
-  const lastLocId = last ? last.locId : destinationWhenIdle();
-  if (lastLocId === locId && !(game.queue.length === 0 && game.truck.state !== 'idle')) {
-    toast('Bilen är redan på väg dit.', 'marker');
-    return;
+  const last = game.queue.length ? game.queue[game.queue.length - 1].locId : null;
+  if (last === locId) { toast('Redan nästa stopp.', 'marker'); return; }
+  if (!game.queue.length && game.truck.state !== 'driving' && game.truck.atNode === nodeKey(loc.x, loc.y) && !loc.service) {
+    toast('Du står redan här.', 'marker'); return;
   }
   game.queue.push({ locId, service: loc.service || null });
-  toast('Tillagt: ' + loc.name, 'marker');
+  toast('Tillagt: ' + loc.name, loc.service ? SERVICE_TEXT[loc.service].icon : 'marker');
+  rebuildRoute();
   renderQueue();
-}
-
-function destinationWhenIdle() {
-  // Platsen bilen står på (eller är på väg mot) när kön är tom
-  const t = game.truck;
-  for (const id in LOCATIONS) {
-    const L = LOCATIONS[id];
-    if (nodeKey(L.x, L.y) === t.atNode && t.state !== 'driving') return id;
-  }
-  return null;
 }
 
 function removeQueueItem(index) {
   if (index === 0 && game.running && game.truck.state !== 'idle') {
-    // Aktivt stopp: avbryt pågående aktivitet och fortsätt till nästa
     game.queue.shift();
-    if (game.truck.state === 'driving') {
-      game.truck.path = []; // stannar vid nästa nod
-    } else {
-      game.truck.state = 'idle';
-    }
+    if (game.truck.state === 'driving') game.truck.path = [];
+    else game.truck.state = 'idle';
   } else {
     game.queue.splice(index, 1);
   }
+  rebuildRoute();
   renderQueue();
 }
 
 function clearQueue() {
-  game.queue = game.queue.slice(0, game.running && game.truck.state !== 'idle' ? 1 : 0);
+  const keep = game.running && game.truck.state !== 'idle' ? 1 : 0;
+  game.queue = game.queue.slice(0, keep);
+  rebuildRoute();
   renderQueue();
+}
+
+/* ---------- Rutt ---------- */
+
+function rebuildRoute() {
+  const t = game.truck;
+  const driving = t.state === 'driving' && t.path.length > 0;
+  let fromKey = driving ? nodeKey(t.path[t.path.length - 1].x, t.path[t.path.length - 1].y) : t.atNode;
+  const segs = [];
+  for (let i = driving ? 1 : 0; i < game.queue.length; i++) {
+    const loc = LOCATIONS[game.queue[i].locId];
+    const toKey = nodeKey(loc.x, loc.y);
+    segs.push({ pts: shortestPath(fromKey, toKey).path.map(keyToPoint), index: i });
+    fromKey = toKey;
+  }
+  game.route = segs;
 }
 
 /* ---------- Simulering ---------- */
@@ -388,10 +410,10 @@ function clearQueue() {
 function startDriveTo(locId) {
   const t = game.truck;
   const loc = LOCATIONS[locId];
-  const { path } = shortestPath(t.atNode, nodeKey(loc.x, loc.y));
-  t.path = path.map(keyToPoint);
+  t.path = shortestPath(t.atNode, nodeKey(loc.x, loc.y)).path.map(keyToPoint);
   t.pathIndex = 0;
   t.state = 'driving';
+  rebuildRoute();
 }
 
 function arriveAt(locId) {
@@ -400,38 +422,29 @@ function arriveAt(locId) {
   t.atNode = nodeKey(loc.x, loc.y);
   t.x = loc.x; t.y = loc.y;
 
-  // Lämna paket
   for (const d of game.deliveries) {
     if (d.state === 'carried' && d.to === locId) {
       d.state = 'done';
-      toast(d.label + ' levererat till ' + loc.name + '!', 'check');
+      toast(d.label + ' framme hos ' + (loc.who || loc.name) + '!', 'check');
     }
   }
-  // Hämta paket
   tryPickupAt(locId);
 
   const item = game.queue[0];
   if (item && item.locId === locId && item.service) {
     const s = item.service;
-    const t2 = game.truck;
-    const full =
-      (s === 'charge' && t2.battery >= batteryMax() - 0.5) ||
-      (s === 'eat' && t2.food >= BAL.foodMax - 0.5) ||
-      (s === 'sleep' && t2.energy >= BAL.energyMax - 0.5);
-    if (full) {
-      toast('Redan fullt — inget att göra här.', 'check');
-      game.queue.shift();
-      t.state = 'idle';
-    } else {
-      t.state = s;
-      toast(SERVICE_TEXT[s].doing + '…', SERVICE_TEXT[s].icon);
-    }
+    const full = (s === 'charge' && t.battery >= batteryMax() - 0.5) ||
+                 (s === 'eat' && t.food >= BAL.foodMax - 0.5) ||
+                 (s === 'sleep' && t.energy >= BAL.energyMax - 0.5);
+    if (full) { toast('Redan fullt — inget att göra här.', 'check'); game.queue.shift(); t.state = 'idle'; }
+    else { t.state = s; toast(SERVICE_TEXT[s].doing + '…', SERVICE_TEXT[s].icon); }
   } else {
     if (item && item.locId === locId) game.queue.shift();
     t.state = 'idle';
   }
+  rebuildRoute();
   renderQueue();
-  renderObjectives();
+  renderQuestChip();
   checkLevelComplete();
 }
 
@@ -440,9 +453,9 @@ function tryPickupAt(locId) {
     if (d.state === 'waiting' && d.from === locId) {
       if (carriedCount() < cargoMax()) {
         d.state = 'carried';
-        toast(d.label + ' lastat (' + carriedCount() + '/' + cargoMax() + ').', 'box');
+        toast(d.label + ' lastat (' + carriedCount() + '/' + cargoMax() + ').', d.icon || 'box');
       } else {
-        toast('Flaket är fullt — ' + d.label + ' fick inte plats.', 'cancel');
+        toast('Flaket är fullt — ' + d.label + ' fick vänta.', 'cancel');
       }
     }
   }
@@ -452,34 +465,24 @@ function tick(dtReal) {
   if (!game.running || game.over) return;
   const dtMin = dtReal * BAL.minutesPerSecond * game.speed;
   const t = game.truck;
-
   game.clock += dtMin;
 
-  // Starta nästa köade stopp
   if (t.state === 'idle' && game.queue.length) {
     const next = game.queue[0];
     const loc = LOCATIONS[next.locId];
-    if (t.atNode === nodeKey(loc.x, loc.y)) {
-      arriveAt(next.locId);
-    } else {
-      startDriveTo(next.locId);
-      renderQueue();
-    }
+    if (t.atNode === nodeKey(loc.x, loc.y)) arriveAt(next.locId);
+    else { startDriveTo(next.locId); renderQueue(); }
   }
 
-  // Förflyttning
   if (t.state === 'driving') {
     let travel = BAL.truckSpeed * dtReal * game.speed;
     while (travel > 0 && t.pathIndex < t.path.length - 1) {
       const next = t.path[t.pathIndex + 1];
       const dx = next.x - t.x, dy = next.y - t.y;
       const segLen = Math.hypot(dx, dy);
-      if (dx !== 0) t.facing = dx > 0 ? 1 : -1;
+      if (Math.abs(dx) > 0.01) t.facing = dx > 0 ? 1 : -1;
       const step = Math.min(travel, segLen);
-      if (segLen > 0) {
-        t.x += (dx / segLen) * step;
-        t.y += (dy / segLen) * step;
-      }
+      if (segLen > 0) { t.x += (dx / segLen) * step; t.y += (dy / segLen) * step; }
       t.battery -= (step / 100) * BAL.batteryDrainPer100px;
       travel -= step;
       if (step >= segLen - 0.001) {
@@ -490,47 +493,33 @@ function tick(dtReal) {
     }
     if (t.pathIndex >= t.path.length - 1) {
       const item = game.queue[0];
-      if (item) {
-        const loc = LOCATIONS[item.locId];
-        if (t.atNode === nodeKey(loc.x, loc.y)) {
-          arriveAt(item.locId);
-        } else {
-          t.state = 'idle'; // stoppet togs bort under körning
-        }
-      } else {
-        t.state = 'idle';
-      }
+      if (item && t.atNode === nodeKey(LOCATIONS[item.locId].x, LOCATIONS[item.locId].y)) arriveAt(item.locId);
+      else { t.state = 'idle'; rebuildRoute(); }
     }
-    if (t.battery <= 0) { t.battery = 0; return failLevel('Batteriet tog slut mitt på vägen. Bärgaren fick hämta bilen.', 'batteryPack'); }
+    if (t.battery <= 0) { t.battery = 0; return failLevel('Batteriet tog slut mitt på vägen. Gustav fick komma med bärgaren och Greta blev orolig.', 'batteryPack'); }
   }
 
-  // Tjänster
   if (t.state === 'charge') {
     t.battery = Math.min(batteryMax(), t.battery + chargeRate() * dtMin);
-    if (t.battery >= batteryMax() - 0.01) { finishService('Batteriet fulladdat!', 'charge'); }
+    if (t.battery >= batteryMax() - 0.01) finishService('Batteriet fulladdat!', 'charge');
   } else if (t.state === 'eat') {
     t.food = Math.min(BAL.foodMax, t.food + BAL.eatRate * dtMin);
-    if (t.food >= BAL.foodMax - 0.01) { finishService('Mätt och belåten!', 'meal'); }
+    if (t.food >= BAL.foodMax - 0.01) finishService('Mätt och belåten. Bengt vinkar av dig.', 'meal');
   } else if (t.state === 'sleep') {
     t.energy = Math.min(BAL.energyMax, t.energy + BAL.sleepRate * dtMin);
-    if (t.energy >= BAL.energyMax - 0.01) { finishService('Utsövd och pigg!', 'nightSleep'); }
+    if (t.energy >= BAL.energyMax - 0.01) finishService('Utsövd! Vera har fyllt termosen.', 'nightSleep');
   }
 
-  // Förarens behov
-  const energyDrain = (t.state === 'driving' ? BAL.energyDrainDrive : BAL.energyDrainIdle) * energyFactor();
-  if (t.state !== 'sleep') t.energy -= energyDrain * dtMin;
+  const drain = (t.state === 'driving' ? BAL.energyDrainDrive : BAL.energyDrainIdle) * energyFactor();
+  if (t.state !== 'sleep') t.energy -= drain * dtMin;
   if (t.state !== 'eat') t.food -= BAL.foodDrain * foodFactor() * dtMin;
 
-  if (t.energy <= 0) { t.energy = 0; return failLevel('Föraren somnade av utmattning. Sov på Motell Vilan innan energin tar slut.', 'nightSleep'); }
-  if (t.food <= 0) { t.food = 0; return failLevel('Föraren svimmade av hunger. Stanna vid Vägkrogen och ät i tid.', 'meal'); }
+  if (t.energy <= 0) { t.energy = 0; return failLevel('Du somnade vid ratten. Vera på Motell Vilan har alltid en säng — sov innan energin tar slut.', 'nightSleep'); }
+  if (t.food <= 0) { t.food = 0; return failLevel('Du blev yr av hunger. Bengt på Vägkrogen har köttbullar som väntar — stanna och ät i tid.', 'meal'); }
 
-  // Tidsgräns
   const lim = currentLevel().timeLimit;
-  if (lim !== null && game.clock >= lim) {
-    return failLevel('Tiden tog slut! Kunden hann tröttna på att vänta.', 'stopwatch');
-  }
+  if (lim !== null && game.clock >= lim) return failLevel('Tiden rann ut. Ingen blir arg på dig, men maten hann bli kall.', 'stopwatch');
 
-  renderStatus();
   checkLevelComplete();
 }
 
@@ -538,17 +527,15 @@ function finishService(msg, icon) {
   toast(msg, icon);
   game.queue.shift();
   game.truck.state = 'idle';
+  rebuildRoute();
   renderQueue();
 }
 
 function checkLevelComplete() {
   if (game.over || !game.running) return;
-  const lvl = currentLevel();
-  const allDone = game.deliveries.every(d => d.state === 'done');
-  if (!allDone) return;
-  if (lvl.returnHome) {
-    const home = nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y);
-    if (game.truck.atNode !== home || game.truck.state === 'driving') return;
+  if (!game.deliveries.every(d => d.state === 'done')) return;
+  if (currentLevel().returnHome) {
+    if (game.truck.atNode !== nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y) || game.truck.state === 'driving') return;
   }
   completeLevel();
 }
@@ -561,23 +548,24 @@ function setupLevel() {
   game.over = false;
   game.clock = 0;
   game.queue = [];
-  game.deliveries = lvl.deliveries.map(d => ({ ...d, state: 'waiting' }));
+  game.route = [];
+  game.deliveries = lvl.deliveries.map(d => Object.assign({}, d, { state: 'waiting' }));
   const t = game.truck;
   t.x = LOCATIONS.depot.x; t.y = LOCATIONS.depot.y;
   t.atNode = nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y);
   t.path = []; t.pathIndex = 0; t.facing = 1;
   t.state = 'idle';
   t.battery = batteryMax();
-  t.energy = BAL.energyMax;
-  t.food = BAL.foodMax;
+  t.energy = lvl.startEnergy || BAL.energyMax;
+  t.food = lvl.startFood || BAL.foodMax;
+  fitView();
   renderAll();
-  showIntroModal();
+  showQuestModal(true);
 }
 
 function startLevel() {
   if (game.running || game.over) return;
   game.running = true;
-  // Lasta det som väntar där bilen står
   tryPickupAt('depot');
   renderAll();
 }
@@ -586,15 +574,14 @@ function completeLevel() {
   game.over = true;
   game.running = false;
   const lvl = currentLevel();
-  const lim = lvl.timeLimit;
-  const timeBonus = lim !== null ? Math.max(0, Math.round((lim - game.clock) * 2)) : 0;
+  const timeBonus = lvl.timeLimit !== null ? Math.max(0, Math.round((lvl.timeLimit - game.clock) * 2)) : 0;
   const total = lvl.reward + timeBonus;
   save.money += total;
   const wasLast = game.levelIndex >= LEVELS.length - 1;
-  if (!wasLast) save.level = game.levelIndex + 1;
+  if (!wasLast) save.level = Math.max(save.level, game.levelIndex + 1);
   else save.finished = true;
   persist();
-  renderTopbar();
+  renderChips();
   showCompleteModal(lvl, timeBonus, total, wasLast);
 }
 
@@ -603,6 +590,7 @@ function failLevel(reason, icon) {
   game.over = true;
   game.running = false;
   renderStatus();
+  renderControls();
   showFailModal(reason, icon);
 }
 
@@ -613,41 +601,77 @@ function showModal(html) {
   $('#modalBackdrop').classList.remove('hidden');
 }
 function hideModal() { $('#modalBackdrop').classList.add('hidden'); }
+const modalOpen = () => !$('#modalBackdrop').classList.contains('hidden');
 
-function showIntroModal() {
+function objectiveList() {
   const lvl = currentLevel();
-  const rows = game.deliveries.map(d =>
-    '<li>' + iconSpan('box') + '<span class="obj-text">' + d.label + ': ' +
-    LOCATIONS[d.from].name + ' → ' + LOCATIONS[d.to].name + '</span></li>').join('');
+  let html = '<ul class="objectives">';
+  for (const d of game.deliveries) {
+    const cls = d.state === 'done' ? 'done' : d.state === 'carried' ? 'carried' : 'pending';
+    const ic = d.state === 'done' ? 'check' : (d.icon || 'box');
+    const to = LOCATIONS[d.to], from = LOCATIONS[d.from];
+    const where = d.state === 'carried' ? 'på flaket → ' + (to.who || to.name)
+                : d.state === 'done' ? 'levererat till ' + (to.who || to.name)
+                : 'hämtas hos ' + (from.who || from.name) + ' → ' + (to.who || to.name);
+    html += '<li class="' + cls + '">' + iconSpan(ic) + '<span class="obj-text"><b>' + d.label + '</b> — ' + where + '</span></li>';
+  }
+  if (lvl.returnHome) {
+    const allDone = game.deliveries.every(d => d.state === 'done');
+    const home = allDone && game.truck.atNode === nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y) && game.truck.state !== 'driving';
+    html += '<li class="' + (home ? 'done' : allDone ? 'carried' : 'pending') + '">' + iconSpan(home ? 'check' : 'house') +
+      '<span class="obj-text">Kör hem till Greta på Depån</span></li>';
+  }
+  return html + '</ul>';
+}
+
+function showQuestModal(atStart) {
+  const lvl = currentLevel();
+  const lim = lvl.timeLimit;
   showModal(
-    '<h2>' + iconSpan('marker') + 'Nivå ' + (game.levelIndex + 1) + ': ' + lvl.title + '</h2>' +
-    '<p>' + lvl.brief + '</p>' +
-    '<ul class="objectives">' + rows +
-    (lvl.returnHome ? '<li>' + iconSpan('house') + '<span class="obj-text">Återvänd till Depån</span></li>' : '') +
-    '</ul>' +
-    (lvl.timeLimit !== null
-      ? '<p class="sub">' + iconSpan('stopwatch') + ' Tidsgräns: ' + lvl.timeLimit + ' min &nbsp;·&nbsp; Belöning: ' + lvl.reward + ' kr + tidsbonus</p>'
-      : '<p class="sub">Ingen tidsgräns &nbsp;·&nbsp; Belöning: ' + lvl.reward + ' kr</p>') +
-    '<p class="sub">Tryck på platser på kartan för att planera rutten, tryck sedan på Kör.</p>' +
-    '<div class="btnrow"><button class="btn primary" id="modalOk">' + iconSpan('check') + ' Börja planera</button></div>'
+    '<p class="eyebrow">' + (atStart ? 'Nytt uppdrag' : 'Uppdrag') + ' · Nivå ' + (game.levelIndex + 1) + ' av ' + LEVELS.length + '</p>' +
+    '<h2>' + iconSpan('quest') + lvl.title + '</h2>' +
+    '<p class="story">' + lvl.story + '</p>' +
+    objectiveList() +
+    '<p class="sub">' + iconSpan(lim !== null ? 'stopwatch' : 'sun') + ' ' +
+      (lim !== null
+        ? (game.running || game.clock > 0
+            ? Math.ceil(Math.max(0, lim - game.clock)) + ' min kvar av ' + lim
+            : 'Tidsgräns ' + lim + ' min')
+        : 'Ingen tidsgräns — ta den tid du behöver') +
+    ' &nbsp;·&nbsp; ' + iconSpan('money') + ' ' + lvl.reward + ' kr' + (lim !== null ? ' + tidsbonus' : '') + '</p>' +
+    (lvl.startEnergy || lvl.startFood
+      ? '<p class="sub">' + iconSpan('coffee') + ' Du har redan kört ett pass i dag' +
+        (lvl.startEnergy ? ', energin är nere på ' + lvl.startEnergy + ' %' : '') +
+        (lvl.startFood ? ' och du börjar bli hungrig' : '') +
+        '. Planera in vila hos Vera eller mat hos Bengt.</p>'
+      : '') +
+    (atStart ? '<p class="sub">' + iconSpan('info') + ' Tryck på platser på kartan för att planera rutten. Dra för att panorera, nyp eller scrolla för att zooma.</p>' : '') +
+    '<div class="btnrow"><button class="btn primary" id="modalOk">' + iconSpan('check') + '<span class="lbl">' + (atStart ? 'Börja planera' : 'Stäng') + '</span></button></div>'
   );
   $('#modalOk').addEventListener('click', hideModal);
 }
 
 function showCompleteModal(lvl, timeBonus, total, wasLast) {
+  const cheers = [
+    'Greta möter dig på gården med kaffepannan i hand.',
+    'Rosa vinkar från fönstret. Allt kom fram i tid.',
+    'Enzo sjunger en hel aria till din ära.',
+    'Sill spinner. Det betyder att du gjorde bra ifrån dig.',
+    'Bengt höjer kaffekoppen mot dig när du kör förbi.'
+  ];
   showModal(
-    '<h2>' + iconSpan('trophy') + 'Uppdrag slutfört!</h2>' +
-    '<p>' + lvl.title + ' avklarat på ' + Math.round(game.clock) + ' minuter.</p>' +
+    '<p class="eyebrow">Uppdrag slutfört</p>' +
+    '<h2>' + iconSpan('trophy') + lvl.title + '</h2>' +
+    '<p class="story">' + cheers[game.levelIndex % cheers.length] + ' Du klarade rundan på ' + Math.round(game.clock) + ' minuter.</p>' +
     '<ul class="rewardlist">' +
     '<li><span>Belöning</span><span>' + lvl.reward + ' kr</span></li>' +
     (lvl.timeLimit !== null ? '<li><span>Tidsbonus</span><span>' + timeBonus + ' kr</span></li>' : '') +
-    '<li class="total"><span>Totalt</span><span>+' + total + ' kr</span></li>' +
-    '</ul>' +
+    '<li class="total"><span>Totalt</span><span>+' + total + ' kr</span></li></ul>' +
     '<div class="btnrow">' +
-    '<button class="btn" id="modalShop">' + iconSpan('shop') + ' Butiken</button>' +
+    '<button class="btn" id="modalShop">' + iconSpan('shop') + '<span class="lbl">Butiken</span></button>' +
     (wasLast
-      ? '<button class="btn primary" id="modalVictory">' + iconSpan('trophy') + ' Fortsätt</button>'
-      : '<button class="btn primary" id="modalNext">' + iconSpan('play') + ' Nästa nivå</button>') +
+      ? '<button class="btn primary" id="modalVictory">' + iconSpan('sparkles') + '<span class="lbl">Fortsätt</span></button>'
+      : '<button class="btn primary" id="modalNext">' + iconSpan('play') + '<span class="lbl">Nästa uppdrag</span></button>') +
     '</div>'
   );
   $('#modalShop').addEventListener('click', () => showShopModal(wasLast ? 'victory' : 'next'));
@@ -657,32 +681,31 @@ function showCompleteModal(lvl, timeBonus, total, wasLast) {
 
 function showVictoryModal() {
   showModal(
-    '<h2>' + iconSpan('trophy') + 'Alla uppdrag slutförda!</h2>' +
-    '<p>Du har klarat alla ' + LEVELS.length + ' nivåer och är stadens bästa transportförare. Grattis!</p>' +
-    '<p class="sub">Sammanlagd kassa: ' + save.money + ' kr</p>' +
+    '<p class="eyebrow">Alla uppdrag slutförda</p>' +
+    '<h2>' + iconSpan('trophy') + 'Tack, Delivery Girl</h2>' +
+    '<p class="story">Torget är fullt av folk och lyktorna tänds en efter en. Rosa har bakat en tårta med en liten lastbil i marsipan, Enzo sjunger falskt men innerligt, och Greta säger att hon alltid vetat att du skulle klara det. Sill sover i din förarstol.</p>' +
+    '<p class="sub">' + iconSpan('money') + ' Sammanlagd kassa: ' + save.money + ' kr</p>' +
     '<div class="btnrow">' +
-    '<button class="btn" id="modalReplay">' + iconSpan('retry') + ' Spela om sista nivån</button>' +
-    '<button class="btn danger" id="modalReset">' + iconSpan('cancel') + ' Börja om från början</button>' +
+    '<button class="btn" id="modalReplay">' + iconSpan('retry') + '<span class="lbl">Kör sista igen</span></button>' +
+    '<button class="btn danger" id="modalReset">' + iconSpan('cancel') + '<span class="lbl">Börja om</span></button>' +
     '</div>'
   );
   $('#modalReplay').addEventListener('click', () => setupLevel());
   $('#modalReset').addEventListener('click', () => {
-    save = defaultSave();
-    persist();
-    game.levelIndex = 0;
-    renderTopbar();
-    setupLevel();
+    save = defaultSave(); persist();
+    game.levelIndex = 0; renderChips(); setupLevel();
   });
 }
 
 function showFailModal(reason, icon) {
   showModal(
-    '<h2>' + iconSpan(icon || 'cancel') + 'Uppdraget misslyckades</h2>' +
-    '<p>' + reason + '</p>' +
-    '<p class="sub">Inga pengar går förlorade — försök igen!</p>' +
+    '<p class="eyebrow">Uppdraget misslyckades</p>' +
+    '<h2>' + iconSpan(icon || 'cancel') + 'Det gick inte hela vägen</h2>' +
+    '<p class="story">' + reason + '</p>' +
+    '<p class="sub">Inga pengar går förlorade — ta ett djupt andetag och försök igen.</p>' +
     '<div class="btnrow">' +
-    '<button class="btn" id="modalShop2">' + iconSpan('shop') + ' Butiken</button>' +
-    '<button class="btn primary" id="modalRetry">' + iconSpan('retry') + ' Försök igen</button>' +
+    '<button class="btn" id="modalShop2">' + iconSpan('shop') + '<span class="lbl">Butiken</span></button>' +
+    '<button class="btn primary" id="modalRetry">' + iconSpan('retry') + '<span class="lbl">Försök igen</span></button>' +
     '</div>'
   );
   $('#modalRetry').addEventListener('click', () => setupLevel());
@@ -690,24 +713,20 @@ function showFailModal(reason, icon) {
 }
 
 function showShopModal(returnTo) {
-  let html = '<h2>' + iconSpan('shop') + 'Butiken</h2>' +
-    '<p class="sub">Kassa: <b>' + save.money + ' kr</b></p>';
+  let html = '<p class="eyebrow">Gustavs verkstad &amp; butik</p><h2>' + iconSpan('shop') + 'Butiken</h2>' +
+    '<p class="sub">Kassa: <b style="color:var(--accent)">' + save.money + ' kr</b></p>';
   for (const id in UPGRADES) {
     const u = UPGRADES[id];
-    const lvl = save.upgrades[id];
-    const maxed = lvl >= u.costs.length;
-    const cost = maxed ? null : u.costs[lvl];
-    html += '<div class="shopitem">' +
-      '<span class="icon">' + ICONS[u.icon] + '</span>' +
-      '<span class="info"><b>' + u.name + ' <small>(' + lvl + '/' + u.costs.length + ')</small></b>' +
-      '<small>' + u.desc + '</small></span>' +
-      (maxed
-        ? '<span class="maxed">' + iconSpan('check') + ' Max</span>'
-        : '<button class="buy" data-upg="' + id + '"' + (save.money < cost ? ' disabled' : '') + '>' +
-          iconSpan('money') + cost + ' kr</button>') +
+    const lv = save.upgrades[id];
+    const maxed = lv >= u.costs.length;
+    const cost = maxed ? null : u.costs[lv];
+    html += '<div class="shopitem">' + iconSpan(u.icon) +
+      '<span class="info"><b>' + u.name + ' <small>(' + lv + '/' + u.costs.length + ')</small></b><small>' + u.desc + '</small></span>' +
+      (maxed ? '<span class="maxed">' + iconSpan('check') + 'Max</span>'
+             : '<button class="buy" data-upg="' + id + '"' + (save.money < cost ? ' disabled' : '') + '>' + iconSpan('money') + cost + ' kr</button>') +
       '</div>';
   }
-  html += '<div class="btnrow"><button class="btn primary" id="modalBack">' + iconSpan('check') + ' Klar</button></div>';
+  html += '<div class="btnrow"><button class="btn primary" id="modalBack">' + iconSpan('check') + '<span class="lbl">Klar</span></button></div>';
   showModal(html);
   document.querySelectorAll('.buy[data-upg]').forEach(b => {
     b.addEventListener('click', () => {
@@ -717,8 +736,7 @@ function showShopModal(returnTo) {
       save.money -= cost;
       save.upgrades[id] += 1;
       persist();
-      renderTopbar();
-      renderStatus();
+      renderChips(); renderStatus();
       toast(UPGRADES[id].name + ' uppgraderad!', 'upgrade');
       showShopModal(returnTo);
     });
@@ -732,66 +750,24 @@ function showShopModal(returnTo) {
 }
 
 function showChangelogModal() {
-  let html = '<h2>' + iconSpan('truck') + 'GRL Transport <small style="color:var(--muted);font-size:0.75em">v' + VERSION + '</small></h2>' +
-    '<ul class="changelog">';
+  let html = '<p class="eyebrow">Version ' + VERSION + '</p><h2>' + iconSpan('truck') + 'Delivery Girl</h2>' +
+    '<p class="sub">Vad som ingår i varje version:</p><ul class="changelog">';
   for (const c of CHANGELOG) {
-    html += '<li><span class="ver">v' + c.version + '</span><span class="date">' + c.date + '</span>' +
-      '<ul>' + c.items.map(i => '<li>' + i + '</li>').join('') + '</ul></li>';
+    html += '<li><span class="ver">v' + c.version + '</span><span class="date">' + c.date + '</span><ul>' +
+      c.items.map(i => '<li>' + i + '</li>').join('') + '</ul></li>';
   }
-  html += '</ul>' +
-    '<p class="credit">Symboler av Delapouite &amp; Lorc från <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a> (CC BY 3.0).</p>' +
-    '<div class="btnrow"><button class="btn primary" id="modalOk">' + iconSpan('check') + ' Stäng</button></div>';
+  html += '</ul><p class="credit">Symboler av Delapouite &amp; Lorc från <a href="https://game-icons.net" target="_blank" rel="noopener">game-icons.net</a>, licens CC BY 3.0.</p>' +
+    '<div class="btnrow"><button class="btn primary" id="modalOk">' + iconSpan('check') + '<span class="lbl">Stäng</span></button></div>';
   showModal(html);
   $('#modalOk').addEventListener('click', hideModal);
 }
 
-/* ---------- Rendering: paneler ---------- */
-
-function renderTopbar() {
-  $('#levelStat').innerHTML = iconSpan('marker') + ' Nivå ' + (game.levelIndex + 1) + '/' + LEVELS.length;
-  $('#moneyStat').innerHTML = iconSpan('money') + ' ' + save.money + ' kr';
-  $('#shopBtn').innerHTML = iconSpan('shop') + ' Butik';
-  $('#versionBtn').innerHTML = 'v' + VERSION;
-}
-
-function renderObjectives() {
-  const lvl = currentLevel();
-  $('#taskBrief').textContent = 'Nivå ' + (game.levelIndex + 1) + ': ' + lvl.title;
-  const ul = $('#objectives');
-  ul.innerHTML = '';
-  for (const d of game.deliveries) {
-    const li = el('li', d.state === 'done' ? 'done' : (d.state === 'carried' ? 'carried' : ''));
-    const ic = d.state === 'done' ? 'check' : 'box';
-    li.innerHTML = iconSpan(ic) + '<span class="obj-text">' + d.label + ': ' +
-      LOCATIONS[d.from].name + ' → ' + LOCATIONS[d.to].name + '</span>';
-    ul.appendChild(li);
-  }
-  if (lvl.returnHome) {
-    const allDone = game.deliveries.every(d => d.state === 'done');
-    const home = allDone && game.truck.atNode === nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y) && game.truck.state !== 'driving';
-    const li = el('li', home ? 'done' : '');
-    li.innerHTML = iconSpan(home ? 'check' : 'house') + '<span class="obj-text">Återvänd till Depån</span>';
-    ul.appendChild(li);
-  }
-}
-
-function renderTime() {
-  const lvl = currentLevel();
-  const row = $('#timeRow');
-  if (lvl.timeLimit === null) {
-    row.innerHTML = iconSpan('stopwatch') + ' ' + Math.floor(game.clock) + ' min (ingen tidsgräns)';
-    row.classList.remove('warn');
-  } else {
-    const left = Math.max(0, lvl.timeLimit - game.clock);
-    row.innerHTML = iconSpan('stopwatch') + ' ' + Math.ceil(left) + ' min kvar av ' + lvl.timeLimit;
-    row.classList.toggle('warn', left < lvl.timeLimit * 0.25);
-  }
-}
+/* ---------- HUD ---------- */
 
 const BAR_DEFS = [
-  { key: 'battery', icon: 'battery',   label: 'Batteri', color: '#57c26b', max: batteryMax },
-  { key: 'energy',  icon: 'coffee',    label: 'Energi',  color: '#5aa9e6', max: () => BAL.energyMax },
-  { key: 'food',    icon: 'knifeFork', label: 'Mat',     color: '#f0913d', max: () => BAL.foodMax }
+  { key: 'battery', icon: 'battery',   label: 'Batteri', col: '#57c26b', col2: '#8ce89f', max: batteryMax },
+  { key: 'energy',  icon: 'coffee',    label: 'Energi',  col: '#5aa9e6', col2: '#93cdf6', max: () => BAL.energyMax },
+  { key: 'food',    icon: 'knifeFork', label: 'Mat',     col: '#a3d977', col2: '#cdf0a4', max: () => BAL.foodMax }
 ];
 
 function renderStatus() {
@@ -799,8 +775,9 @@ function renderStatus() {
   if (!wrap.childElementCount) {
     for (const b of BAR_DEFS) {
       const row = el('div', 'barrow');
+      row.id = 'row-' + b.key;
       row.innerHTML = '<span class="icon" title="' + b.label + '">' + ICONS[b.icon] + '</span>' +
-        '<span class="bar"><span class="fill" id="fill-' + b.key + '" style="background:' + b.color + '"></span></span>' +
+        '<span class="bar" style="--barcol:' + b.col + ';--barcol2:' + b.col2 + '"><span class="empty" id="empty-' + b.key + '"></span></span>' +
         '<span class="val" id="val-' + b.key + '"></span>';
       wrap.appendChild(row);
     }
@@ -808,47 +785,62 @@ function renderStatus() {
   for (const b of BAR_DEFS) {
     const max = b.max();
     const v = Math.max(0, game.truck[b.key]);
-    const fill = $('#fill-' + b.key);
-    fill.style.width = Math.min(100, (v / max) * 100) + '%';
-    fill.style.background = v / max < 0.2 ? 'var(--red)' : b.color;
-    $('#val-' + b.key).textContent = Math.round(v) + '/' + Math.round(max);
+    const pct = Math.max(0, Math.min(100, (v / max) * 100));
+    $('#empty-' + b.key).style.width = (100 - pct) + '%';
+    $('#val-' + b.key).textContent = Math.round(v);
+    $('#row-' + b.key).classList.toggle('low', pct < 25);
   }
-  const cargo = $('#cargoRow');
-  let slots = '';
   const carried = game.deliveries.filter(d => d.state === 'carried');
+  let slots = '';
   for (let i = 0; i < cargoMax(); i++) {
-    const full = i < carried.length;
-    slots += '<span class="slot' + (full ? ' full' : '') + '" title="' + (full ? carried[i].label : 'Tom lastplats') + '">' +
-      (full ? iconSpan('box') : '') + '</span>';
+    const d = carried[i];
+    slots += '<span class="slot' + (d ? ' full' : '') + '" title="' + (d ? d.label : 'Tom lastplats') + '">' +
+      (d ? iconSpan(d.icon || 'box') : '') + '</span>';
   }
-  cargo.innerHTML = '<span>Last:</span>' + slots + '<span>' + carried.length + '/' + cargoMax() + '</span>';
-  renderTime();
+  $('#cargoRow').innerHTML = slots + '<span>' + carried.length + '/' + cargoMax() + '</span>';
+}
+
+function renderQuestChip() {
+  const lvl = currentLevel();
+  $('#qcTitle').textContent = (game.levelIndex + 1) + '. ' + lvl.title;
+  const done = game.deliveries.filter(d => d.state === 'done').length;
+  const total = game.deliveries.length;
+  let time;
+  if (lvl.timeLimit === null) {
+    time = iconSpan('sun') + '<b>' + Math.floor(game.clock) + '</b> min';
+  } else {
+    const left = Math.max(0, lvl.timeLimit - game.clock);
+    const warn = left < lvl.timeLimit * 0.25 ? ' warn' : '';
+    time = '<span class="' + warn.trim() + '">' + iconSpan('stopwatch') + '<b>' + Math.ceil(left) + '</b> min</span>';
+  }
+  $('#qcBody').innerHTML = '<span>' + iconSpan('box') + '<b>' + done + '/' + total + '</b></span>' + time;
 }
 
 function renderQueue() {
   const ol = $('#queueList');
   ol.innerHTML = '';
   $('#queueHint').style.display = game.queue.length ? 'none' : '';
+  $('#queueCount').textContent = game.queue.length;
   game.queue.forEach((item, i) => {
     const loc = LOCATIONS[item.locId];
     const active = i === 0 && game.running && game.truck.state !== 'idle';
     const li = el('li', active ? 'active' : '');
-    let text = 'Kör till ' + loc.name;
-    if (item.service) text += ' och ' + SERVICE_TEXT[item.service].queued;
+    let text = loc.name;
+    if (item.service) text += ' · ' + SERVICE_TEXT[item.service].queued;
     let prog = '';
     if (active) {
       const t = game.truck;
       if (t.state === 'charge') prog = Math.round((t.battery / batteryMax()) * 100) + ' %';
-      else if (t.state === 'eat') prog = Math.round(t.food) + '/' + BAL.foodMax;
-      else if (t.state === 'sleep') prog = Math.round(t.energy) + '/' + BAL.energyMax;
+      else if (t.state === 'eat') prog = Math.round(t.food) + ' %';
+      else if (t.state === 'sleep') prog = Math.round(t.energy) + ' %';
       else if (t.state === 'driving') prog = 'kör…';
     }
-    li.innerHTML = '<span class="num">' + (i + 1) + '.</span>' +
+    li.innerHTML = '<span class="num">' + (i + 1) + '</span>' +
       iconSpan(item.service ? SERVICE_TEXT[item.service].icon : 'marker') +
       '<span class="qtext">' + text + '</span>' +
       (prog ? '<span class="qprog">' + prog + '</span>' : '') +
-      '<button class="rm" title="Ta bort" aria-label="Ta bort">' + iconSpan('trash') + '</button>';
-    li.querySelector('.rm').addEventListener('click', () => removeQueueItem(i));
+      '<button class="rm" aria-label="Ta bort">' + iconSpan('trash') + '</button>';
+    li.querySelector('.rm').addEventListener('click', ev => { ev.stopPropagation(); removeQueueItem(i); });
     ol.appendChild(li);
   });
   renderControls();
@@ -856,154 +848,326 @@ function renderQueue() {
 
 function renderControls() {
   const play = $('#playBtn');
-  if (!game.running) {
-    play.innerHTML = iconSpan('play') + ' Kör';
-    play.disabled = game.over;
-  } else {
-    play.innerHTML = iconSpan('pause') + ' Paus';
-    play.disabled = false;
-  }
-  $('#speedBtn').innerHTML = iconSpan('fast') + ' ' + game.speed + 'x';
-  $('#clearBtn').innerHTML = iconSpan('trash') + ' Rensa';
+  play.innerHTML = game.running
+    ? iconSpan('pause') + '<span class="lbl">Paus</span>'
+    : iconSpan('play') + '<span class="lbl">Kör</span>';
+  play.disabled = game.over;
+  $('#speedBtn').innerHTML = iconSpan('fast') + '<span class="lbl">' + game.speed + 'x</span>';
+  $('#clearBtn').innerHTML = iconSpan('trash') + '<span class="lbl">Rensa</span>';
   $('#clearBtn').disabled = game.queue.length === 0;
+  $('#restartBtn').innerHTML = iconSpan('retry') + '<span class="lbl">Börja om</span>';
+}
+
+function renderChips() {
+  $('#moneyChip').innerHTML = iconSpan('money') + save.money + ' kr';
+  $('#shopBtn').innerHTML = iconSpan('shop') + 'Butik';
+  $('#versionBtn').textContent = 'v' + VERSION;
 }
 
 function renderAll() {
-  renderTopbar();
-  renderObjectives();
+  renderChips();
+  renderQuestChip();
   renderStatus();
   renderQueue();
 }
 
-/* ---------- Rendering: karta ---------- */
+/* ---------- Kamera ---------- */
 
 const canvas = $('#map');
 const ctx = canvas.getContext('2d');
-let dpr = 1, cssScale = 1;
+const cam = { x: W / 2, y: H / 2, scale: 1 };
+let viewW = 0, viewH = 0, dpr = 1;
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fitScale = () => Math.min(viewW / (W + 90), viewH / (H + 90));
+const minScale = () => fitScale() * 0.75;
+const maxScale = () => Math.max(fitScale() * 3.2, 1.8);
+
+// Hela kartan får plats när skärmen har ungefär samma proportioner som världen.
+// På smala eller låga skärmar zoomar vi in en bit i stället för att lämna
+// halva skärmen tom — resten når man genom att dra.
+function defaultScale() {
+  const sw = viewW / (W + 90), sh = viewH / (H + 90);
+  const fit = Math.min(sw, sh), cover = Math.max(sw, sh);
+  if (cover / fit < 1.6) return fit;
+  return Math.min(fit * 1.55, cover * 0.8);
+}
+
+function clampCam() {
+  cam.scale = clamp(cam.scale, minScale(), maxScale());
+  const halfW = viewW / (2 * cam.scale), halfH = viewH / (2 * cam.scale);
+  const m = 70;
+  if (W + m * 2 <= halfW * 2) cam.x = W / 2;
+  else cam.x = clamp(cam.x, halfW - m, W - halfW + m);
+  if (H + m * 2 <= halfH * 2) cam.y = H / 2;
+  else cam.y = clamp(cam.y, halfH - m, H - halfH + m);
+}
 
 function resizeCanvas() {
-  const rect = canvas.parentElement.getBoundingClientRect();
-  const cssW = rect.width;
-  const cssH = cssW * (H / W);
-  dpr = window.devicePixelRatio || 1;
-  cssScale = cssW / W;
-  canvas.style.height = cssH + 'px';
-  canvas.width = Math.round(cssW * dpr);
-  canvas.height = Math.round(cssH * dpr);
-}
-window.addEventListener('resize', resizeCanvas);
-
-function drawMap() {
-  ctx.setTransform(dpr * cssScale, 0, 0, dpr * cssScale, 0, 0);
-  // Gräs
-  ctx.fillStyle = '#3a4a33';
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = 'rgba(255,255,255,0.03)';
-  for (let i = 0; i < 60; i++) {
-    const gx = (i * 137) % W, gy = (i * 89) % H;
-    ctx.fillRect(gx, gy, 3, 3);
-  }
-
-  // Vägar
-  const roadW = 26;
-  ctx.strokeStyle = '#2b2f36';
-  ctx.lineWidth = roadW;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  for (const y of GRID_Y) { ctx.moveTo(GRID_X[0], y); ctx.lineTo(GRID_X[GRID_X.length - 1], y); }
-  for (const x of GRID_X) { ctx.moveTo(x, GRID_Y[0]); ctx.lineTo(x, GRID_Y[GRID_Y.length - 1]); }
-  ctx.stroke();
-
-  // Mittlinjer
-  ctx.strokeStyle = 'rgba(246,185,59,0.55)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([14, 12]);
-  ctx.beginPath();
-  for (const y of GRID_Y) { ctx.moveTo(GRID_X[0], y); ctx.lineTo(GRID_X[GRID_X.length - 1], y); }
-  for (const x of GRID_X) { ctx.moveTo(x, GRID_Y[0]); ctx.lineTo(x, GRID_Y[GRID_Y.length - 1]); }
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Planerad rutt
-  drawPlannedRoute();
-
-  // Platser
-  for (const id in LOCATIONS) drawLocation(LOCATIONS[id]);
-
-  // Lastbil
-  drawTruck();
+  viewW = window.innerWidth;
+  viewH = window.innerHeight;
+  dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  canvas.width = Math.round(viewW * dpr);
+  canvas.height = Math.round(viewH * dpr);
+  canvas.style.width = viewW + 'px';
+  canvas.style.height = viewH + 'px';
+  clampCam();
 }
 
-function drawPlannedRoute() {
-  if (!game.queue.length) return;
-  const t = game.truck;
-  let fromKey = t.atNode;
-  ctx.strokeStyle = 'rgba(90,169,230,0.5)';
-  ctx.lineWidth = 6;
-  ctx.lineCap = 'round';
-  ctx.setLineDash([2, 12]);
-  ctx.beginPath();
-  // Från bilens position längs återstående körväg
-  if (t.state === 'driving' && t.path.length) {
-    ctx.moveTo(t.x, t.y);
-    for (let i = t.pathIndex + 1; i < t.path.length; i++) ctx.lineTo(t.path[i].x, t.path[i].y);
-    fromKey = nodeKey(t.path[t.path.length - 1].x, t.path[t.path.length - 1].y);
-  }
-  for (let q = t.state === 'driving' ? 1 : 0; q < game.queue.length; q++) {
-    const loc = LOCATIONS[game.queue[q].locId];
-    const toKey = nodeKey(loc.x, loc.y);
-    const { path } = shortestPath(fromKey, toKey);
-    const pts = path.map(keyToPoint);
-    if (pts.length) {
-      ctx.moveTo(pts[0].x, pts[0].y);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+function fitView() {
+  viewW = window.innerWidth; viewH = window.innerHeight;
+  cam.scale = defaultScale();
+  cam.x = W / 2; cam.y = H / 2;
+  clampCam();
+}
+
+function screenToWorld(sx, sy) {
+  return { x: (sx - viewW / 2) / cam.scale + cam.x, y: (sy - viewH / 2) / cam.scale + cam.y };
+}
+
+function zoomAt(sx, sy, newScale) {
+  const before = screenToWorld(sx, sy);
+  cam.scale = clamp(newScale, minScale(), maxScale());
+  const after = screenToWorld(sx, sy);
+  cam.x += before.x - after.x;
+  cam.y += before.y - after.y;
+  clampCam();
+}
+
+/* ---------- Landskap ---------- */
+
+let seed = 1337;
+function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+
+const scenery = [];
+(function buildScenery() {
+  const props = ['pine', 'birch', 'pine', 'flowers', 'sunflower', 'pine', 'huts', 'village', 'flowerPot'];
+  const isNearRoad = (x, y) => {
+    for (const gx of GRID_X) if (Math.abs(x - gx) < 46) return true;
+    for (const gy of GRID_Y) if (Math.abs(y - gy) < 46) return true;
+    return false;
+  };
+  for (let i = 0; i < 190; i++) {
+    const x = 20 + rnd() * (COAST_X - 40);
+    const y = 20 + rnd() * (H - 40);
+    if (isNearRoad(x, y)) continue;
+    let near = false;
+    for (const id in LOCATIONS) {
+      const L = LOCATIONS[id];
+      if (Math.hypot(L.x + (L.ox || 0) - x, L.y + (L.oy || 0) - y) < 100) { near = true; break; }
     }
-    fromKey = toKey;
+    if (near) continue;
+    const name = props[(rnd() * props.length) | 0];
+    const isTree = name === 'pine' || name === 'birch';
+    scenery.push({
+      name, x, y,
+      size: isTree ? 30 + rnd() * 16 : 22 + rnd() * 10,
+      color: isTree ? (rnd() < 0.5 ? '#4f7a45' : '#5c8a4e')
+           : name === 'flowers' || name === 'sunflower' || name === 'flowerPot' ? '#c9a84c'
+           : '#6d7a86'
+    });
   }
-  ctx.stroke();
+  scenery.sort((a, b) => a.y - b.y);
+})();
+
+/* ---------- Rendering av kartan ---------- */
+
+let animTime = 0;
+
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#1a2430';
+  ctx.fillRect(0, 0, viewW, viewH);
+  ctx.save();
+  ctx.translate(viewW / 2, viewH / 2);
+  ctx.scale(cam.scale, cam.scale);
+  ctx.translate(-cam.x, -cam.y);
+
+  drawGround();
+  drawRoads();
+  drawScenery();
+  drawRoute();
+  for (const id in LOCATIONS) drawLocation(LOCATIONS[id]);
+  drawRouteBadges();
+  drawTruck();
+
+  ctx.restore();
+}
+
+function drawGround() {
+  ctx.fillStyle = '#3d5138';
+  ctx.fillRect(0, 0, W, H);
+  // Fält mellan vägarna
+  ctx.fillStyle = 'rgba(255,255,255,0.03)';
+  const xs = [0].concat(GRID_X, [W]);
+  const ys = [0].concat(GRID_Y, [H]);
+  for (let i = 0; i < xs.length - 1; i++) {
+    for (let j = 0; j < ys.length - 1; j++) {
+      if ((i + j) % 2 === 0) ctx.fillRect(xs[i] + 22, ys[j] + 22, xs[i + 1] - xs[i] - 44, ys[j + 1] - ys[j] - 44);
+    }
+  }
+  // Kust och vatten
+  ctx.fillStyle = '#2f5f78';
+  ctx.fillRect(COAST_X, 0, W - COAST_X, H);
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  for (let y = 20; y < H; y += 46) {
+    const off = Math.sin((y + animTime * 22) / 60) * 9;
+    ctx.fillRect(COAST_X + 22 + off, y, 34, 3);
+  }
+  ctx.fillStyle = '#c8b98d';
+  ctx.fillRect(COAST_X - 14, 0, 14, H);
+  // Världskant
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(0, 0, W, H);
+}
+
+function drawRoads() {
+  const roadW = 44;
+  ctx.lineCap = 'round';
+  // Kantsten
+  ctx.strokeStyle = '#20242b';
+  ctx.lineWidth = roadW + 8;
+  strokeGrid();
+  // Asfalt
+  ctx.strokeStyle = '#33383f';
+  ctx.lineWidth = roadW;
+  strokeGrid();
+  // Mittlinje
+  ctx.strokeStyle = 'rgba(246,185,59,0.45)';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([18, 16]);
+  strokeGrid();
   ctx.setLineDash([]);
 }
 
-const HIT_RADIUS = 44;
-
-function drawLocation(loc) {
-  const hasWaiting = game.deliveries.some(d => d.state === 'waiting' && d.from === loc.id);
-  const isTarget = game.deliveries.some(d => d.state === 'carried' && d.to === loc.id);
-
-  // Platta
-  ctx.fillStyle = 'rgba(20,24,31,0.85)';
-  ctx.strokeStyle = isTarget ? '#f6b93b' : (hasWaiting ? '#5aa9e6' : 'rgba(255,255,255,0.25)');
-  ctx.lineWidth = isTarget || hasWaiting ? 3 : 1.5;
-  roundRect(loc.x - 22, loc.y - 22, 44, 44, 10);
-  ctx.fill();
+function strokeGrid() {
+  ctx.beginPath();
+  for (const y of GRID_Y) { ctx.moveTo(GRID_X[0], y); ctx.lineTo(GRID_X[GRID_X.length - 1], y); }
+  for (const x of GRID_X) { ctx.moveTo(x, GRID_Y[0]); ctx.lineTo(x, GRID_Y[GRID_Y.length - 1]); }
   ctx.stroke();
-
-  // Ikon
-  const img = iconImage(loc.icon, loc.color);
-  if (img.complete && img.naturalWidth) ctx.drawImage(img, loc.x - 14, loc.y - 14, 28, 28);
-
-  // Paketmärke
-  if (hasWaiting || isTarget) {
-    const bimg = iconImage('box', '#14181f');
-    ctx.fillStyle = isTarget ? '#f6b93b' : '#5aa9e6';
-    ctx.beginPath();
-    ctx.arc(loc.x + 19, loc.y - 19, 10, 0, Math.PI * 2);
-    ctx.fill();
-    if (bimg.complete && bimg.naturalWidth) ctx.drawImage(bimg, loc.x + 13, loc.y - 25, 12, 12);
-  }
-
-  // Etikett
-  ctx.font = '600 13px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  const label = loc.name;
-  const tw = ctx.measureText(label).width;
-  const ly = loc.y + 36;
-  ctx.fillStyle = 'rgba(20,24,31,0.75)';
-  roundRect(loc.x - tw / 2 - 6, ly - 11, tw + 12, 17, 6);
-  ctx.fill();
-  ctx.fillStyle = '#e8ecf2';
-  ctx.fillText(label, loc.x, ly + 2);
 }
+
+function drawScenery() {
+  if (cam.scale < 0.18) return;
+  for (const s of scenery) drawIcon(s.name, s.color, s.x, s.y, s.size);
+}
+
+/* ---------- Färdvägen ---------- */
+
+function livePathPoints() {
+  const t = game.truck;
+  if (t.state !== 'driving' || !t.path.length) return null;
+  const pts = [{ x: t.x, y: t.y }];
+  for (let i = t.pathIndex + 1; i < t.path.length; i++) pts.push(t.path[i]);
+  return pts.length > 1 ? pts : null;
+}
+
+function tracePoly(pts) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+}
+
+function drawRoute() {
+  const live = livePathPoints();
+  const segs = [];
+  if (live) segs.push({ pts: live, live: true, index: 0 });
+  for (const s of game.route) segs.push(s);
+  if (!segs.length) return;
+
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // Mörk kontur så rutten syns mot asfalten
+  ctx.strokeStyle = 'rgba(10,14,20,0.75)';
+  ctx.lineWidth = 20;
+  for (const s of segs) { tracePoly(s.pts); ctx.stroke(); }
+
+  // Kommande sträckor
+  ctx.strokeStyle = 'rgba(126,190,240,0.55)';
+  ctx.lineWidth = 11;
+  ctx.setLineDash([26, 20]);
+  ctx.lineDashOffset = -animTime * 46;
+  for (const s of segs) { if (!s.live) { tracePoly(s.pts); ctx.stroke(); } }
+
+  // Aktiv sträcka i gult
+  if (live) {
+    ctx.strokeStyle = 'rgba(246,185,59,0.95)';
+    ctx.lineWidth = 12;
+    tracePoly(live);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Riktningspilar
+  for (const s of segs) drawArrows(s.pts, s.live ? '#ffd97a' : '#bfe0f7');
+
+  // Numrerade stopp
+}
+
+// Numrerade stopp ritas efter husen så de aldrig hamnar bakom
+function drawRouteBadges() {
+  const segs = [];
+  if (livePathPoints()) segs.push({ index: 0 });
+  for (const seg of game.route) segs.push(seg);
+  if (!segs.length) return;
+  const badges = {};
+  for (const s of segs) {
+    const item = game.queue[s.index];
+    if (!item) continue;
+    const loc = LOCATIONS[item.locId];
+    const b = badges[item.locId] || (badges[item.locId] = { x: markerX(loc) - 34, y: markerY(loc) - 34, nums: [] });
+    b.nums.push(s.index + 1);
+  }
+  for (const k in badges) {
+    const b = badges[k];
+    const label = b.nums.join(',');
+    const r = 15 + (label.length - 1) * 3.5;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#f6b93b';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(10,14,20,0.8)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = '#1c1608';
+    ctx.font = '700 19px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, b.x, b.y + 1);
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+
+function drawArrows(pts, color) {
+  const spacing = 130;
+  let carry = 55 - (animTime * 40) % spacing;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len < 1) continue;
+    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+    for (let d = carry; d < len; d += spacing) {
+      if (d < 0) continue;
+      const x = a.x + ux * d, y = a.y + uy * d;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.atan2(uy, ux));
+      ctx.beginPath();
+      ctx.moveTo(9, 0); ctx.lineTo(-7, 7); ctx.lineTo(-3.5, 0); ctx.lineTo(-7, -7);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.strokeStyle = 'rgba(10,14,20,0.7)';
+      ctx.lineWidth = 2;
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+    carry = ((carry - len) % spacing + spacing) % spacing;
+  }
+}
+
+/* ---------- Platser & lastbil ---------- */
 
 function roundRect(x, y, w, h, r) {
   ctx.beginPath();
@@ -1015,128 +1179,261 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
+const markerX = loc => loc.x + (loc.ox || 0);
+const markerY = loc => loc.y + (loc.oy || 0);
+
+function drawLocation(loc) {
+  const pickup = game.deliveries.some(d => d.state === 'waiting' && d.from === loc.id);
+  const dropoff = game.deliveries.some(d => d.state === 'carried' && d.to === loc.id);
+  const s = 62;
+  const mx = markerX(loc), my = markerY(loc);
+
+  // Infart från vägkorsningen fram till huset
+  ctx.strokeStyle = '#4a4034';
+  ctx.lineWidth = 16;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(loc.x, loc.y);
+  ctx.lineTo(mx, my);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.45)';
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 4;
+  ctx.fillStyle = 'rgba(22,27,35,0.92)';
+  roundRect(mx - s / 2, my - s / 2, s, s, 14);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = dropoff ? '#f6b93b' : pickup ? '#7ebef0' : 'rgba(255,255,255,0.28)';
+  ctx.lineWidth = dropoff || pickup ? 4 : 2;
+  roundRect(mx - s / 2, my - s / 2, s, s, 14);
+  ctx.stroke();
+
+  drawIcon(loc.icon, loc.color, mx, my - 2, 36);
+
+  if (pickup || dropoff) {
+    const bx = mx + s / 2 - 4, by = my - s / 2 + 4;
+    ctx.beginPath();
+    ctx.arc(bx, by, 13, 0, Math.PI * 2);
+    ctx.fillStyle = dropoff ? '#f6b93b' : '#7ebef0';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(10,14,20,0.8)';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    drawIcon('box', '#14181f', bx, by, 15);
+  }
+
+  // Skärmkonstant etikett
+  const fs = clamp(15 / cam.scale, 13, 34);
+  ctx.font = '700 ' + fs + 'px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  const label = loc.who && cam.scale > 0.55 ? loc.name + ' · ' + loc.who : loc.name;
+  const tw = ctx.measureText(label).width;
+  const ly = my + s / 2 + fs * 0.55 + 6;
+  ctx.fillStyle = 'rgba(16,20,27,0.82)';
+  roundRect(mx - tw / 2 - 8, ly - fs * 0.78, tw + 16, fs * 1.25, fs * 0.5);
+  ctx.fill();
+  ctx.fillStyle = '#e8ecf2';
+  ctx.fillText(label, mx, ly + fs * 0.28);
+}
+
 function drawTruck() {
   const t = game.truck;
   ctx.save();
-  ctx.translate(t.x, t.y);
-  // Skugga
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.ellipse(0, 12, 16, 5, 0, 0, Math.PI * 2);
+  ctx.ellipse(t.x, t.y + 16, 20, 6, 0, 0, Math.PI * 2);
   ctx.fill();
-  if (t.facing < 0) ctx.scale(-1, 1);
-  const img = iconImage('truck', '#f6b93b');
-  if (img.complete && img.naturalWidth) ctx.drawImage(img, -17, -20, 34, 34);
   ctx.restore();
 
-  // Aktivitetsbubbla
-  const bubbleIcon = t.state === 'charge' ? 'charge' : t.state === 'eat' ? 'meal' : t.state === 'sleep' ? 'nightSleep' : null;
-  if (bubbleIcon) {
-    ctx.fillStyle = 'rgba(20,24,31,0.9)';
-    ctx.strokeStyle = '#f6b93b';
-    ctx.lineWidth = 1.5;
+  ctx.save();
+  ctx.translate(t.x, t.y);
+  if (t.facing < 0) ctx.scale(-1, 1);
+  const img = iconImage('truck', '#f6b93b');
+  if (img.complete && img.naturalWidth) ctx.drawImage(img, -24, -26, 48, 48);
+  ctx.restore();
+
+  const bubble = t.state === 'charge' ? 'charge' : t.state === 'eat' ? 'meal' : t.state === 'sleep' ? 'nightSleep' : null;
+  if (bubble) {
+    const by = t.y - 44 - Math.sin(animTime * 3) * 3;
     ctx.beginPath();
-    ctx.arc(t.x, t.y - 32, 13, 0, Math.PI * 2);
+    ctx.arc(t.x, by, 17, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(16,20,27,0.92)';
     ctx.fill();
+    ctx.strokeStyle = '#f6b93b';
+    ctx.lineWidth = 2;
     ctx.stroke();
-    const img2 = iconImage(bubbleIcon, '#f6b93b');
-    if (img2.complete && img2.naturalWidth) ctx.drawImage(img2, t.x - 8, t.y - 40, 16, 16);
+    drawIcon(bubble, '#f6b93b', t.x, by, 21);
   }
 }
 
-/* ---------- Interaktion ---------- */
+/* ---------- Panorering, zoom och tryck ---------- */
 
-function canvasPointToWorld(evX, evY) {
-  const rect = canvas.getBoundingClientRect();
-  return {
-    x: (evX - rect.left) / rect.width * W,
-    y: (evY - rect.top) / rect.height * H
-  };
+const pointers = new Map();
+let dragAnchor = null, moveDist = 0, downTime = 0, pinch = null;
+
+canvas.addEventListener('pointerdown', ev => {
+  canvas.setPointerCapture(ev.pointerId);
+  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (pointers.size === 1) {
+    dragAnchor = { x: ev.clientX, y: ev.clientY };
+    moveDist = 0;
+    downTime = performance.now();
+    canvas.classList.add('grabbing');
+  } else if (pointers.size === 2) {
+    const p = [...pointers.values()];
+    pinch = {
+      dist: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y),
+      scale: cam.scale,
+      mid: { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 }
+    };
+    dragAnchor = null;
+    moveDist = 999;
+  }
+});
+
+canvas.addEventListener('pointermove', ev => {
+  if (!pointers.has(ev.pointerId)) return;
+  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  if (pointers.size >= 2 && pinch) {
+    const p = [...pointers.values()];
+    const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+    const mid = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+    if (pinch.dist > 0) {
+      // Panorera med mittpunkten och zooma med avståndet
+      cam.x -= (mid.x - pinch.mid.x) / cam.scale;
+      cam.y -= (mid.y - pinch.mid.y) / cam.scale;
+      pinch.mid = mid;
+      zoomAt(mid.x, mid.y, pinch.scale * (d / pinch.dist));
+    }
+  } else if (dragAnchor) {
+    const dx = ev.clientX - dragAnchor.x, dy = ev.clientY - dragAnchor.y;
+    moveDist += Math.hypot(dx, dy);
+    cam.x -= dx / cam.scale;
+    cam.y -= dy / cam.scale;
+    clampCam();
+    dragAnchor = { x: ev.clientX, y: ev.clientY };
+  }
+});
+
+function endPointer(ev) {
+  if (!pointers.has(ev.pointerId)) return;
+  const wasSingle = pointers.size === 1;
+  pointers.delete(ev.pointerId);
+  if (wasSingle) {
+    canvas.classList.remove('grabbing');
+    if (moveDist < 10 && performance.now() - downTime < 500) {
+      const p = screenToWorld(ev.clientX, ev.clientY);
+      const id = locationAt(p.x, p.y);
+      if (id) queueLocation(id);
+    }
+    dragAnchor = null;
+  }
+  if (pointers.size < 2) pinch = null;
+  if (pointers.size === 1) {
+    const p = [...pointers.values()][0];
+    dragAnchor = { x: p.x, y: p.y };
+    moveDist = 999;
+  }
 }
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+
+canvas.addEventListener('wheel', ev => {
+  ev.preventDefault();
+  const factor = Math.pow(0.999, ev.deltaY * (ev.deltaMode === 1 ? 18 : 1));
+  zoomAt(ev.clientX, ev.clientY, cam.scale * factor);
+}, { passive: false });
 
 function locationAt(wx, wy) {
-  let best = null, bestD = HIT_RADIUS;
+  let best = null, bestD = Infinity;
   for (const id in LOCATIONS) {
     const L = LOCATIONS[id];
-    const d = Math.hypot(L.x - wx, L.y - wy);
-    if (d < bestD) { bestD = d; best = id; }
+    // Träff både på huset och på vägkorsningen det ligger vid
+    const d = Math.min(
+      Math.hypot(markerX(L) - wx, markerY(L) - wy) / 56,
+      Math.hypot(L.x - wx, L.y - wy) / 34
+    );
+    if (d < 1 && d < bestD) { bestD = d; best = id; }
   }
   return best;
 }
 
-canvas.addEventListener('click', ev => {
-  const p = canvasPointToWorld(ev.clientX, ev.clientY);
-  const id = locationAt(p.x, p.y);
-  if (id) queueLocation(id);
-});
-
-canvas.addEventListener('pointermove', ev => {
-  const p = canvasPointToWorld(ev.clientX, ev.clientY);
-  canvas.style.cursor = locationAt(p.x, p.y) ? 'pointer' : 'default';
-});
+/* ---------- Knappar ---------- */
 
 $('#playBtn').addEventListener('click', () => {
   if (game.over) return;
-  if (!game.running) startLevel();
-  else game.running = false;
+  if (!game.running) startLevel(); else game.running = false;
   renderControls();
 });
-
 $('#speedBtn').addEventListener('click', () => {
   game.speed = game.speed === 1 ? 2 : game.speed === 2 ? 4 : 1;
   renderControls();
 });
-
 $('#clearBtn').addEventListener('click', clearQueue);
+$('#restartBtn').addEventListener('click', () => { toast('Uppdraget börjar om.', 'retry'); setupLevel(); });
+$('#questChip').addEventListener('click', () => showQuestModal(false));
 $('#versionBtn').addEventListener('click', showChangelogModal);
 $('#shopBtn').addEventListener('click', () => {
   if (game.running) { game.running = false; renderControls(); }
   showShopModal(null);
 });
+$('#queueToggle').addEventListener('click', () => $('#queuePanel').classList.toggle('collapsed'));
+$('#zoomIn').addEventListener('click', () => zoomAt(viewW / 2, viewH / 2, cam.scale * 1.3));
+$('#zoomOut').addEventListener('click', () => zoomAt(viewW / 2, viewH / 2, cam.scale / 1.3));
+$('#zoomFit').innerHTML = ICONS.expand ? '<span class="icon">' + ICONS.expand + '</span>' : '⤢';
+$('#zoomFit').addEventListener('click', fitView);
+$('#modalBackdrop').addEventListener('pointerdown', ev => { if (ev.target.id === 'modalBackdrop') hideModal(); });
+
+window.addEventListener('resize', () => { resizeCanvas(); });
+window.addEventListener('orientationchange', () => setTimeout(() => { resizeCanvas(); fitView(); }, 120));
 
 /* ---------- Blockera zoom, markering och förstoringsglas ---------- */
 
-// Dubbeltryck-zoom (iOS Safari struntar i user-scalable=no)
 let lastTouchEnd = 0;
 document.addEventListener('touchend', ev => {
   const now = Date.now();
   if (now - lastTouchEnd < 350) ev.preventDefault();
   lastTouchEnd = now;
 }, { passive: false });
-
-// Nyp-zoom / gester (iOS)
-for (const evName of ['gesturestart', 'gesturechange', 'gestureend']) {
-  document.addEventListener(evName, ev => ev.preventDefault(), { passive: false });
+document.addEventListener('touchmove', ev => { if (ev.touches.length > 1) ev.preventDefault(); }, { passive: false });
+for (const n of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(n, ev => ev.preventDefault(), { passive: false });
 }
-
-// Dubbelklick och långtryck (förstoringsglas/kontextmeny)
 document.addEventListener('dblclick', ev => ev.preventDefault(), { passive: false });
 document.addEventListener('contextmenu', ev => ev.preventDefault());
 document.addEventListener('selectstart', ev => ev.preventDefault());
 
-/* ---------- Spelloop ---------- */
+/* ---------- Loop ---------- */
 
 let lastTime = performance.now();
-let statusAccum = 0;
+let hudAccum = 0;
 
 function frame(now) {
   const dt = Math.min(0.1, (now - lastTime) / 1000);
   lastTime = now;
+  animTime += dt;
   tick(dt);
-  // Uppdatera kö-progress i lagom takt
-  statusAccum += dt;
-  if (statusAccum > 0.25) {
-    statusAccum = 0;
-    if (game.running) renderQueue();
+  hudAccum += dt;
+  if (hudAccum > 0.12) {
+    hudAccum = 0;
+    if (game.running) { renderStatus(); renderQuestChip(); renderQueue(); }
   }
-  drawMap();
+  draw();
   requestAnimationFrame(frame);
 }
 
 /* ---------- Start ---------- */
 
-resizeCanvas();
 game.levelIndex = Math.min(save.level, LEVELS.length - 1);
+if (window.innerWidth < 560) $('#queuePanel').classList.add('collapsed');
+resizeCanvas();
+fitView();
 renderAll();
 setupLevel();
 requestAnimationFrame(frame);
