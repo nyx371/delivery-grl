@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="description" content="GRL Transport — ett strategiskt planeringsspel där du styr en transportbil.">
+<title>GRL Transport</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header id="topbar">
+  <div class="brand">
+    <span class="icon" id="brandIcon"></span>
+    <h1>GRL&nbsp;Transport</h1>
+  </div>
+  <div class="topstats">
+    <span class="stat" id="levelStat" title="Nivå"></span>
+    <span class="stat money" id="moneyStat" title="Pengar"></span>
+    <button class="chip" id="shopBtn" type="button"></button>
+    <button class="chip version" id="versionBtn" type="button"></button>
+  </div>
+</header>
+
+<main id="layout">
+  <section id="mapWrap">
+    <canvas id="map"></canvas>
+    <div id="toasts"></div>
+  </section>
+
+  <aside id="panel">
+    <section class="card" id="taskCard">
+      <h2><span class="icon" data-icon="box"></span> Uppdrag</h2>
+      <p id="taskBrief"></p>
+      <ul id="objectives" class="objectives"></ul>
+      <div id="timeRow" class="timerow"></div>
+    </section>
+
+    <section class="card" id="resourceCard">
+      <h2><span class="icon" data-icon="wheel"></span> Status</h2>
+      <div class="bars" id="bars"></div>
+      <div id="cargoRow" class="cargorow"></div>
+    </section>
+
+    <section class="card" id="queueCard">
+      <h2><span class="icon" data-icon="path"></span> Körschema</h2>
+      <p class="hint" id="queueHint">Tryck på en plats på kartan för att lägga till ett stopp.</p>
+      <ol id="queueList" class="queue"></ol>
+      <div class="controls">
+        <button id="playBtn" class="btn primary" type="button"></button>
+        <button id="speedBtn" class="btn" type="button"></button>
+        <button id="clearBtn" class="btn danger" type="button"></button>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<div id="modalBackdrop" class="hidden">
+  <div id="modal" role="dialog" aria-modal="true"></div>
+</div>
+
+<script src="icons.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
