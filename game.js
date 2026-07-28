@@ -5,9 +5,20 @@
    Vanilla JS + Canvas. Symboler: game-icons.net (CC BY 3.0)
    ============================================================ */
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 
 const CHANGELOG = [
+  {
+    version: '1.3.0',
+    date: '2026-07-28',
+    items: [
+      'Kartan fyller hela webbläsarfönstret — inga svarta kanter kvar oavsett skärmform.',
+      'Landsbygden fortsätter utanför stan med åkrar, skogsdungar och hav, så vyn aldrig tar slut.',
+      'Vägarna löper ut ur stan och kameran får svepa en bit ut i landskapet.',
+      'Du kan zooma ut längre än förut och fortfarande se sammanhängande mark.',
+      'Ikonerna ritas av till små bilder en gång i stället för att skalas om varje bildruta — kartan går nu flera gånger snabbare trots mycket mer landskap.'
+    ]
+  },
   {
     version: '1.2.0',
     date: '2026-07-28',
@@ -358,9 +369,30 @@ function iconImage(name, color) {
   }
   return iconImageCache[key];
 }
+// SVG:erna rasteriseras i 512x512. Att skala ner dem till 30 px varje bild
+// är dyrt, så vi ritar av dem en gång till en liten canvas och återanvänder den.
+const rasterCache = {};
+function rasterIcon(name, color, size) {
+  // Bucket efter hur stor ikonen faktiskt blir på skärmen, så den håller
+  // sig skarp när man zoomar in utan att kosta något när man zoomar ut.
+  const onScreen = size * cam.scale;
+  const bucket = onScreen <= 48 ? 64 : onScreen <= 112 ? 128 : 256;
+  const key = name + '|' + color + '|' + bucket;
+  let c = rasterCache[key];
+  if (!c) {
+    const img = iconImage(name, color);
+    if (!img.complete || !img.naturalWidth) return null; // laddas fortfarande
+    c = document.createElement('canvas');
+    c.width = c.height = bucket;
+    c.getContext('2d').drawImage(img, 0, 0, bucket, bucket);
+    rasterCache[key] = c;
+  }
+  return c;
+}
+
 function drawIcon(name, color, cx, cy, size) {
-  const img = iconImage(name, color);
-  if (img.complete && img.naturalWidth) ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+  const c = rasterIcon(name, color, size);
+  if (c) ctx.drawImage(c, cx - size / 2, cy - size / 2, size, size);
 }
 
 function toast(msg, icon) {
@@ -958,28 +990,34 @@ const cam = { x: W / 2, y: H / 2, scale: 1 };
 let viewW = 0, viewH = 0, dpr = 1;
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const fitScale = () => Math.min(viewW / (W + 90), viewH / (H + 90));
-const minScale = () => fitScale() * 0.75;
-const maxScale = () => Math.max(fitScale() * 3.2, 1.8);
 
-// Hela kartan får plats när skärmen har ungefär samma proportioner som världen.
-// På smala eller låga skärmar zoomar vi in en bit i stället för att lämna
-// halva skärmen tom — resten når man genom att dra.
+// Landsbygden fortsätter en bra bit utanför vägnätet, så vyn aldrig tar slut
+const TERRAIN = 900;
+const fitScale = () => Math.min(viewW / (W + 90), viewH / (H + 90));
+const coverScale = () => Math.max(viewW / W, viewH / H);
+const minScale = () => fitScale() * 0.6;
+const maxScale = () => Math.max(fitScale() * 3.6, 2);
+
+// Visa hela vägnätet från start, men zooma in något på riktigt smala
+// skärmar så att husen inte blir frimärken.
 function defaultScale() {
-  const sw = viewW / (W + 90), sh = viewH / (H + 90);
-  const fit = Math.min(sw, sh), cover = Math.max(sw, sh);
-  if (cover / fit < 1.6) return fit;
-  return Math.min(fit * 1.55, cover * 0.8);
+  return clamp(Math.max(fitScale(), coverScale() * 0.45), minScale(), maxScale());
 }
 
+// Kameran får svepa ut i landskapet, men inte hur långt som helst
 function clampCam() {
   cam.scale = clamp(cam.scale, minScale(), maxScale());
   const halfW = viewW / (2 * cam.scale), halfH = viewH / (2 * cam.scale);
-  const m = 70;
-  if (W + m * 2 <= halfW * 2) cam.x = W / 2;
-  else cam.x = clamp(cam.x, halfW - m, W - halfW + m);
-  if (H + m * 2 <= halfH * 2) cam.y = H / 2;
-  else cam.y = clamp(cam.y, halfH - m, H - halfH + m);
+  const loX = -TERRAIN + halfW, hiX = W + TERRAIN - halfW;
+  const loY = -TERRAIN + halfH, hiY = H + TERRAIN - halfH;
+  cam.x = loX > hiX ? W / 2 : clamp(cam.x, loX, hiX);
+  cam.y = loY > hiY ? H / 2 : clamp(cam.y, loY, hiY);
+}
+
+// Världsrektangeln som just nu syns på skärmen
+function visibleRect() {
+  const halfW = viewW / (2 * cam.scale), halfH = viewH / (2 * cam.scale);
+  return { x0: cam.x - halfW, y0: cam.y - halfH, x1: cam.x + halfW, y1: cam.y + halfH };
 }
 
 function resizeCanvas() {
@@ -1018,25 +1056,32 @@ function zoomAt(sx, sy, newScale) {
 let seed = 1337;
 function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
 
+// Åkerlapparna följer vägnätets rutmönster och fortsätter ut i landskapet
+const FIELD_X = [], FIELD_Y = [];
+(function buildFields() {
+  const stepX = GRID_X[1] - GRID_X[0], stepY = GRID_Y[1] - GRID_Y[0];
+  for (let i = -6; i <= GRID_X.length + 6; i++) FIELD_X.push(GRID_X[0] + i * stepX);
+  for (let j = -6; j <= GRID_Y.length + 6; j++) FIELD_Y.push(GRID_Y[0] + j * stepY);
+})();
+
 const scenery = [];
 (function buildScenery() {
   const props = ['pine', 'birch', 'pine', 'flowers', 'sunflower', 'pine', 'huts', 'village', 'flowerPot'];
-  const isNearRoad = (x, y) => {
-    for (const gx of GRID_X) if (Math.abs(x - gx) < 46) return true;
-    for (const gy of GRID_Y) if (Math.abs(y - gy) < 46) return true;
+  const nearRoad = (x, y) => {
+    for (const gx of GRID_X) if (Math.abs(x - gx) < 46 && y > GRID_Y[0] - 60 && y < GRID_Y[GRID_Y.length - 1] + 60) return true;
+    for (const gy of GRID_Y) if (Math.abs(y - gy) < 46 && x > GRID_X[0] - 60 && x < GRID_X[GRID_X.length - 1] + 60) return true;
     return false;
   };
-  for (let i = 0; i < 190; i++) {
-    const x = 20 + rnd() * (COAST_X - 40);
-    const y = 20 + rnd() * (H - 40);
-    if (isNearRoad(x, y)) continue;
-    let near = false;
+  const nearHouse = (x, y) => {
     for (const id in LOCATIONS) {
       const L = LOCATIONS[id];
-      if (Math.hypot(L.x + (L.ox || 0) - x, L.y + (L.oy || 0) - y) < 100) { near = true; break; }
+      if (Math.hypot(L.x + (L.ox || 0) - x, L.y + (L.oy || 0) - y) < 100) return true;
     }
-    if (near) continue;
-    const name = props[(rnd() * props.length) | 0];
+    return false;
+  };
+  const place = (x, y, forceTree) => {
+    if (x > COAST_X - 46 || nearRoad(x, y) || nearHouse(x, y)) return;
+    const name = forceTree ? (rnd() < 0.72 ? 'pine' : 'birch') : props[(rnd() * props.length) | 0];
     const isTree = name === 'pine' || name === 'birch';
     scenery.push({
       name, x, y,
@@ -1045,6 +1090,17 @@ const scenery = [];
            : name === 'flowers' || name === 'sunflower' || name === 'flowerPot' ? '#c9a84c'
            : '#6d7a86'
     });
+  };
+  // Spridda inslag över hela landskapet
+  for (let i = 0; i < 900; i++) {
+    place(-TERRAIN + rnd() * (W + TERRAIN * 2), -TERRAIN + rnd() * (H + TERRAIN * 2), false);
+  }
+  // Skogsdungar som gör landsbygden mindre prickig
+  for (let c = 0; c < 46; c++) {
+    const cx = -TERRAIN + rnd() * (W + TERRAIN * 2);
+    const cy = -TERRAIN + rnd() * (H + TERRAIN * 2);
+    const n = 4 + (rnd() * 7) | 0;
+    for (let i = 0; i < n; i++) place(cx + (rnd() - 0.5) * 190, cy + (rnd() - 0.5) * 160, true);
   }
   scenery.sort((a, b) => a.y - b.y);
 })();
@@ -1055,8 +1111,6 @@ let animTime = 0;
 
 function draw() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.fillStyle = '#1a2430';
-  ctx.fillRect(0, 0, viewW, viewH);
   ctx.save();
   ctx.translate(viewW / 2, viewH / 2);
   ctx.scale(cam.scale, cam.scale);
@@ -1073,32 +1127,41 @@ function draw() {
   ctx.restore();
 }
 
+// Marken målas över hela den synliga världsrektangeln, så det aldrig
+// finns tomrum runt kartan hur långt man än panorerar eller zoomar ut.
 function drawGround() {
+  const v = visibleRect();
+  const vw = v.x1 - v.x0, vh = v.y1 - v.y0;
+
   ctx.fillStyle = '#3d5138';
-  ctx.fillRect(0, 0, W, H);
-  // Fält mellan vägarna
+  ctx.fillRect(v.x0, v.y0, vw, vh);
+
+  // Åkerlappar i schackmönster, bara de som syns
   ctx.fillStyle = 'rgba(255,255,255,0.03)';
-  const xs = [0].concat(GRID_X, [W]);
-  const ys = [0].concat(GRID_Y, [H]);
-  for (let i = 0; i < xs.length - 1; i++) {
-    for (let j = 0; j < ys.length - 1; j++) {
-      if ((i + j) % 2 === 0) ctx.fillRect(xs[i] + 22, ys[j] + 22, xs[i + 1] - xs[i] - 44, ys[j + 1] - ys[j] - 44);
+  for (let i = 0; i < FIELD_X.length - 1; i++) {
+    const fx = FIELD_X[i], fw = FIELD_X[i + 1] - fx;
+    if (fx + fw < v.x0 || fx > v.x1) continue;
+    for (let j = 0; j < FIELD_Y.length - 1; j++) {
+      if ((i + j) % 2 !== 0) continue;
+      const fy = FIELD_Y[j], fh = FIELD_Y[j + 1] - fy;
+      if (fy + fh < v.y0 || fy > v.y1) continue;
+      ctx.fillRect(fx + 22, fy + 22, fw - 44, fh - 44);
     }
   }
-  // Kust och vatten
-  ctx.fillStyle = '#2f5f78';
-  ctx.fillRect(COAST_X, 0, W - COAST_X, H);
-  ctx.fillStyle = 'rgba(255,255,255,0.10)';
-  for (let y = 20; y < H; y += 46) {
-    const off = Math.sin((y + animTime * 22) / 60) * 9;
-    ctx.fillRect(COAST_X + 22 + off, y, 34, 3);
+
+  // Havet i öster fortsätter så långt vyn räcker
+  if (v.x1 > COAST_X - 14) {
+    ctx.fillStyle = '#2f5f78';
+    ctx.fillRect(COAST_X, v.y0, Math.max(0, v.x1 - COAST_X), vh);
+    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    const y0 = Math.floor(v.y0 / 46) * 46;
+    for (let y = y0; y < v.y1; y += 46) {
+      const off = Math.sin((y + animTime * 22) / 60) * 9;
+      ctx.fillRect(COAST_X + 22 + off, y, 34, 3);
+    }
+    ctx.fillStyle = '#c8b98d';
+    ctx.fillRect(COAST_X - 14, v.y0, 14, vh);
   }
-  ctx.fillStyle = '#c8b98d';
-  ctx.fillRect(COAST_X - 14, 0, 14, H);
-  // Världskant
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-  ctx.lineWidth = 6;
-  ctx.strokeRect(0, 0, W, H);
 }
 
 function drawRoads() {
@@ -1120,16 +1183,23 @@ function drawRoads() {
   ctx.setLineDash([]);
 }
 
+const STUB = 150; // vägarna fortsätter en bit ut ur stan innan de tar slut
 function strokeGrid() {
+  const x0 = GRID_X[0], x1 = GRID_X[GRID_X.length - 1];
+  const y0 = GRID_Y[0], y1 = GRID_Y[GRID_Y.length - 1];
   ctx.beginPath();
-  for (const y of GRID_Y) { ctx.moveTo(GRID_X[0], y); ctx.lineTo(GRID_X[GRID_X.length - 1], y); }
-  for (const x of GRID_X) { ctx.moveTo(x, GRID_Y[0]); ctx.lineTo(x, GRID_Y[GRID_Y.length - 1]); }
+  for (const y of GRID_Y) { ctx.moveTo(x0 - STUB, y); ctx.lineTo(x1 + STUB, y); }
+  for (const x of GRID_X) { ctx.moveTo(x, y0 - STUB); ctx.lineTo(x, y1 + STUB); }
   ctx.stroke();
 }
 
 function drawScenery() {
-  if (cam.scale < 0.18) return;
-  for (const s of scenery) drawIcon(s.name, s.color, s.x, s.y, s.size);
+  if (cam.scale < 0.14) return;
+  const v = visibleRect();
+  for (const s of scenery) {
+    if (s.x < v.x0 - 40 || s.x > v.x1 + 40 || s.y < v.y0 - 40 || s.y > v.y1 + 40) continue;
+    drawIcon(s.name, s.color, s.x, s.y, s.size);
+  }
 }
 
 /* ---------- Färdvägen ---------- */
@@ -1333,8 +1403,8 @@ function drawTruck() {
   ctx.save();
   ctx.translate(t.x, t.y);
   if (t.facing < 0) ctx.scale(-1, 1);
-  const img = iconImage('truck', '#f6b93b');
-  if (img.complete && img.naturalWidth) ctx.drawImage(img, -24, -26, 48, 48);
+  const c = rasterIcon('truck', '#f6b93b', 48);
+  if (c) ctx.drawImage(c, -24, -26, 48, 48);
   ctx.restore();
 
   const bubble = t.state === 'charge' ? 'charge' : t.state === 'eat' ? 'meal' : t.state === 'sleep' ? 'nightSleep' : null;

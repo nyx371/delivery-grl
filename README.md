@@ -21,7 +21,7 @@ Kugghjulet uppe till höger öppnar inställningarna, där du väljer spelläge.
 
 ## Kartan
 
-Kartan går att panorera och zooma: dra för att flytta, nyp eller scrolla för att zooma, och knapparna nere till höger zoomar in, ut och visar hela kartan. Vyn är inte låst till liggande läge utan fyller skärmen lika bra stående som liggande.
+Kartan fyller hela webbläsarfönstret, oavsett skärmform — landsbygden med åkrar, skogsdungar och hav fortsätter utanför stan, så det finns aldrig tomma kanter runt spelplanen. Dra för att panorera, nyp eller scrolla för att zooma; knapparna nere till höger zoomar in, ut och visar hela stan igen.
 
 ## Teknik
 
