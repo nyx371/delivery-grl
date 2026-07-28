@@ -547,6 +547,47 @@ button.chip .icon { width: 1.05rem; height: 1.05rem; }
 #modal .wallet .icon { color: var(--accent); width: 1.3rem; height: 1.3rem; }
 #modal .wallet b { color: var(--accent); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
 
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: left;
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem 0.75rem;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.toggle:hover { border-color: rgba(246, 185, 59, 0.55); }
+.toggle.on { border-color: var(--accent); background: rgba(246, 185, 59, 0.1); }
+.toggle > .icon { width: 1.7rem; height: 1.7rem; color: var(--muted); flex: none; }
+.toggle.on > .icon { color: var(--accent); }
+.toggle .info { flex: 1; min-width: 0; }
+.toggle .info b { font-size: 0.92rem; display: block; margin-bottom: 0.1rem; }
+.toggle .info small { display: block; color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
+.toggle .sw {
+  flex: none;
+  width: 2.7rem; height: 1.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--line);
+  position: relative;
+  transition: background 0.18s;
+}
+.toggle.on .sw { background: var(--accent); border-color: var(--accent); }
+.toggle .sw .knob {
+  position: absolute;
+  top: 0.16rem; left: 0.18rem;
+  width: 1.1rem; height: 1.1rem;
+  border-radius: 50%;
+  background: #e8ecf2;
+  transition: transform 0.18s;
+}
+.toggle.on .sw .knob { transform: translateX(1.1rem); background: #1c1608; }
+
 .versionrow {
   margin-top: 1rem;
   padding-top: 0.7rem;
@@ -631,6 +672,47 @@ button.chip .icon { width: 1.05rem; height: 1.05rem; }
 }
 #modal .wallet .icon { color: var(--accent); width: 1.3rem; height: 1.3rem; }
 #modal .wallet b { color: var(--accent); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  text-align: left;
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem 0.75rem;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.toggle:hover { border-color: rgba(246, 185, 59, 0.55); }
+.toggle.on { border-color: var(--accent); background: rgba(246, 185, 59, 0.1); }
+.toggle > .icon { width: 1.7rem; height: 1.7rem; color: var(--muted); flex: none; }
+.toggle.on > .icon { color: var(--accent); }
+.toggle .info { flex: 1; min-width: 0; }
+.toggle .info b { font-size: 0.92rem; display: block; margin-bottom: 0.1rem; }
+.toggle .info small { display: block; color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
+.toggle .sw {
+  flex: none;
+  width: 2.7rem; height: 1.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--line);
+  position: relative;
+  transition: background 0.18s;
+}
+.toggle.on .sw { background: var(--accent); border-color: var(--accent); }
+.toggle .sw .knob {
+  position: absolute;
+  top: 0.16rem; left: 0.18rem;
+  width: 1.1rem; height: 1.1rem;
+  border-radius: 50%;
+  background: #e8ecf2;
+  transition: transform 0.18s;
+}
+.toggle.on .sw .knob { transform: translateX(1.1rem); background: #1c1608; }
 
 .versionrow {
   margin-top: 1rem;

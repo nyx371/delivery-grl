@@ -5,9 +5,19 @@
    Vanilla JS + Canvas. Symboler: game-icons.net (CC BY 3.0)
    ============================================================ */
 
-const VERSION = '1.8.0';
+const VERSION = '1.9.0';
 
 const CHANGELOG = [
+  {
+    version: '1.9.0',
+    date: '2026-07-28',
+    items: [
+      'Enkla ljudeffekter: pling när du köar ett stopp, lastar, levererar, laddar, äter och sover.',
+      'Egna signaler när ett uppdrag är klart, när det misslyckas och när en mätare börjar närma sig botten.',
+      'Ljudet går att stänga av under Ljud i inställningarna.',
+      'Tonerna räknas fram i webbläsaren — inga ljudfiler att ladda ner.'
+    ]
+  },
   {
     version: '1.8.0',
     date: '2026-07-28',
@@ -526,6 +536,7 @@ function newRun() {
   return {
     level: 0, money: 0,
     mode: 'realtime', // 'realtime' = välj åtgärder medan bilen kör, 'planning' = planera först
+    sound: true,
     upgrades: { batteryCap: 0, chargeSpeed: 0, cargo: 0, thermos: 0, coolbox: 0 }
   };
 }
@@ -544,6 +555,7 @@ const game = {
   route: [],
   places: new Set(),
   follow: true,
+  warned: { battery: false, energy: false, food: false },
   over: false,
   userPaused: false,
   truck: {
@@ -563,6 +575,58 @@ const foodFactor = () => Math.pow(0.75, run.upgrades.coolbox);
 const currentLevel = () => LEVELS[game.levelIndex];
 const isRealtime = () => run.mode !== 'planning';
 const carriedCount = () => game.deliveries.filter(d => d.state === 'carried').length;
+
+/* ---------- Ljud ---------- */
+/* Korta toner som ritas fram i webbläsaren — inga ljudfiler att ladda.
+   Ljudkortet får inte startas förrän spelaren rört skärmen, så vi väcker
+   det vid första trycket. */
+
+let audioCtx = null;
+let audioReady = false;
+
+function wakeAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    try { audioCtx = new AC(); } catch (e) { return null; }
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  audioReady = audioCtx.state === 'running';
+  return audioCtx;
+}
+
+// Spelar en liten slinga toner
+function tones(freqs, opt) {
+  if (!run.sound || !audioReady || !audioCtx) return;
+  const o = opt || {};
+  const dur = o.dur || 0.12, gap = o.gap || 0.075;
+  const type = o.type || 'triangle', vol = o.gain || 0.11;
+  const t0 = audioCtx.currentTime;
+  freqs.forEach((f, i) => {
+    const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(f, t0 + i * gap);
+    const s = t0 + i * gap;
+    g.gain.setValueAtTime(0.0001, s);
+    g.gain.linearRampToValueAtTime(vol, s + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, s + dur);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(s); osc.stop(s + dur + 0.03);
+  });
+}
+
+const SFX = {
+  tap:     () => tones([440], { dur: 0.06, gain: 0.05, type: 'sine' }),
+  queue:   () => tones([523, 784], { dur: 0.09, gain: 0.08, gap: 0.05 }),
+  pickup:  () => tones([523, 698], { dur: 0.11, gain: 0.09 }),
+  deliver: () => tones([659, 880, 1175], { dur: 0.13, gain: 0.1, gap: 0.075 }),
+  service: () => tones([392, 587], { dur: 0.16, gain: 0.07, type: 'sine', gap: 0.09 }),
+  done:    () => tones([523, 659, 784, 1047], { dur: 0.22, gain: 0.12, gap: 0.11 }),
+  fail:    () => tones([440, 349, 262], { dur: 0.3, gain: 0.1, type: 'sine', gap: 0.15 }),
+  warn:    () => tones([392, 294], { dur: 0.17, gain: 0.09, gap: 0.13 }),
+  ui:      () => tones([660], { dur: 0.05, gain: 0.045, type: 'sine' }),
+  money:   () => tones([784, 1047, 1319], { dur: 0.1, gain: 0.09, gap: 0.06 })
+};
 
 /* ---------- DOM ---------- */
 
@@ -631,6 +695,7 @@ function queueLocation(locId) {
     toast('Du står redan här.', 'marker'); return;
   }
   game.queue.push({ locId, service: loc.service || null });
+  SFX.queue();
   toast('Tillagt: ' + loc.name, loc.service ? SERVICE_TEXT[loc.service].icon : 'marker');
   rebuildRoute();
   // I direktläge rullar allt igång av sig självt vid första stoppet
@@ -693,6 +758,7 @@ function arriveAt(locId) {
   for (const d of game.deliveries) {
     if (d.state === 'carried' && d.to === locId) {
       d.state = 'done';
+      SFX.deliver();
       toast(itemName(d.item) + ' levererat till ' + loc.name + '!', 'check');
     }
   }
@@ -705,7 +771,7 @@ function arriveAt(locId) {
                  (s === 'eat' && t.food >= BAL.foodMax - 0.5) ||
                  (s === 'sleep' && t.energy >= BAL.energyMax - 0.5);
     if (full) { toast('Redan fullt — inget att göra här.', 'check'); game.queue.shift(); t.state = 'idle'; }
-    else { t.state = s; toast(SERVICE_TEXT[s].doing + '…', SERVICE_TEXT[s].icon); }
+    else { t.state = s; SFX.service(); toast(SERVICE_TEXT[s].doing + '…', SERVICE_TEXT[s].icon); }
   } else {
     if (item && item.locId === locId) game.queue.shift();
     t.state = 'idle';
@@ -728,6 +794,7 @@ function tryPickupAt(locId) {
     if (d.state === 'waiting' && d.from === locId) {
       if (carriedCount() < cargoMax()) {
         d.state = 'carried';
+        SFX.pickup();
         toast(itemName(d.item) + ' lastat (' + carriedCount() + '/' + cargoMax() + ').', d.item);
       } else {
         toast('Flaket är fullt — ' + itemName(d.item) + ' fick vänta.', 'cancel');
@@ -756,6 +823,17 @@ function truckWarning() {
   if (worst === b) return 'charge';
   if (worst === e) return 'coffee';
   return 'meal';
+}
+
+// Pling när en mätare passerar under en fjärdedel, en gång per resurs
+function checkLowWarnings() {
+  const t = game.truck;
+  const lvls = { battery: t.battery / batteryMax(), energy: t.energy / BAL.energyMax, food: t.food / BAL.foodMax };
+  for (const k in lvls) {
+    const low = lvls[k] < 0.25;
+    if (low && !game.warned[k]) { game.warned[k] = true; SFX.warn(); }
+    else if (!low && lvls[k] > 0.32) game.warned[k] = false;
+  }
 }
 
 function tick(dtReal) {
@@ -814,6 +892,8 @@ function tick(dtReal) {
   if (t.energy <= 0) { t.energy = 0; return failLevel('Du somnade vid ratten. Sov på vandrarhemmet innan energin tar slut.', 'nightSleep'); }
   if (t.food <= 0) { t.food = 0; return failLevel('Du blev yr av hunger. Stanna vid matstället och ät i tid.', 'meal'); }
 
+  checkLowWarnings();
+
   const lim = currentLevel().timeLimit;
   if (lim !== null && game.clock >= lim) return failLevel('Tiden rann ut. Ingen blir arg på dig, men maten hann bli kall.', 'stopwatch');
 
@@ -821,6 +901,7 @@ function tick(dtReal) {
 }
 
 function finishService(msg, icon) {
+  SFX.service();
   toast(msg, icon);
   game.queue.shift();
   game.truck.state = 'idle';
@@ -880,6 +961,7 @@ function completeLevel() {
   if (!wasLast) run.level = Math.max(run.level, game.levelIndex + 1);
   else run.finished = true;
   renderChips();
+  SFX.done();
   showCompleteModal(lvl, timeBonus, total, wasLast);
 }
 
@@ -889,6 +971,7 @@ function failLevel(reason, icon) {
   game.running = false;
   renderStatus();
   renderControls();
+  SFX.fail();
   showFailModal(reason, icon);
 }
 
@@ -1030,6 +1113,7 @@ function showShopModal(returnTo) {
       run.money -= cost;
       run.upgrades[id] += 1;
       renderChips(); renderStatus();
+      SFX.money();
       toast(UPGRADES[id].name + ' uppgraderad!', 'upgrade');
       showShopModal(returnTo);
     });
@@ -1067,6 +1151,12 @@ function showSettingsModal() {
   }
   html += '<p class="sub">Valet gäller direkt, även mitt i ett uppdrag.</p>';
 
+  html += '<h2 class="section">' + iconSpan(run.sound ? 'soundOn' : 'soundOff') + 'Ljud</h2>' +
+    '<button class="toggle' + (run.sound ? ' on' : '') + '" id="soundToggle" type="button">' +
+    '<span class="icon">' + ICONS[run.sound ? 'soundOn' : 'soundOff'] + '</span>' +
+    '<span class="info"><b>Ljudeffekter</b><small>Korta pling när du lastar, levererar, laddar och när något börjar ta slut.</small></span>' +
+    '<span class="sw"><span class="knob"></span></span></button>';
+
   html += '<h2 class="section">' + iconSpan('quest') + 'Välj uppdrag</h2>' +
     '<p class="sub">Inget sparas mellan sidladdningar — här hoppar du till vilket pass du vill. ' +
     'Du får med dig lönen för passen du hoppar över.</p><div class="levelgrid">';
@@ -1085,6 +1175,12 @@ function showSettingsModal() {
   $('#restartBtn').addEventListener('click', () => { toast('Uppdraget börjar om.', 'retry'); setupLevel(); });
   document.querySelectorAll('.modeopt[data-mode]').forEach(b => {
     b.addEventListener('click', () => { setMode(b.dataset.mode); showSettingsModal(); });
+  });
+  $('#soundToggle').addEventListener('click', () => {
+    run.sound = !run.sound;
+    if (run.sound) { wakeAudio(); SFX.ui(); }
+    toast(run.sound ? 'Ljud på.' : 'Ljud av.', run.sound ? 'soundOn' : 'soundOff');
+    showSettingsModal();
   });
   document.querySelectorAll('.levelbtn[data-level]').forEach(b => {
     b.addEventListener('click', () => {
@@ -2066,6 +2162,8 @@ function drawOffscreenTargets() {
 const pointers = new Map();
 let dragAnchor = null, moveDist = 0, downTime = 0, pinch = null;
 
+document.addEventListener('pointerdown', wakeAudio, { once: false, passive: true });
+
 canvas.addEventListener('pointerdown', ev => {
   canvas.setPointerCapture(ev.pointerId);
   pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
@@ -2121,7 +2219,7 @@ function endPointer(ev) {
       const p = screenToWorld(ev.clientX, ev.clientY);
       const id = locationAt(p.x, p.y);
       pulses.push({ x: p.x, y: p.y, t: 0 });
-      if (id) queueLocation(id);
+      if (id) queueLocation(id); else SFX.tap();
     }
     dragAnchor = null;
   }
@@ -2162,6 +2260,7 @@ function locationAt(wx, wy) {
 
 $('#playBtn').addEventListener('click', () => {
   if (game.over) return;
+  SFX.ui();
   if (game.running) { game.running = false; game.userPaused = true; }
   else { game.userPaused = false; startLevel(); }
   renderControls();
