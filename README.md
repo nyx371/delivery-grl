@@ -12,9 +12,10 @@ Du är Delivery Girl och kör stadens lilla eldrivna lastbil. Hämta varor och k
 - **Uppdragslista** uppe till höger som stryks över allt eftersom leveranserna kommer fram.
 - **Kön med åtgärder:** köa hur många stopp du vill — kör, ladda, ät, sov. Varje rad i körschemat har ett **X** för att plocka bort just den, och du kan lägga till och ta bort stopp även medan bilen rullar.
 - **Uppdraget är klart** så fort sista leveransen är framme. Bilen börjar dagen på en startplats i stan, men du behöver inte köra tillbaka dit.
+- **Tre resurser med var sin färg och symbol:** grön blixt för bilens ström, blå zzz för din sömn och orange bestick för mat. Laddstationer, viloställen och matställen bär samma symboler och färger på kartan, så de är lätta att hitta.
 - **Tre resurser:** bilens batteri, din energi och din mat. Ladda på laddstationen, ät på matstället och sov på vandrarhemmet. Börjar något ta slut kryper bilen fram och visar en pratbubbla med vad som fattas. Långpassen börjar med trött förare, så vila måste planeras in.
 - **Pengar & butik:** klarade uppdrag ger pengar som köper uppgraderingar — större batteri, snabbladdning, större flak, kaffetermos och kylbox.
-- **Inget sparas mellan sidladdningar** — varje omladdning är en ny arbetsdag. Vill du hoppa till ett senare pass finns uppdragsväljaren i inställningarna, och du får då med dig lönen för passen du hoppar över.
+- **Spelframstegen sparas inte** — varje omladdning är en ny arbetsdag. Vill du hoppa till ett senare pass finns uppdragsväljaren i inställningarna, och du får då med dig lönen för passen du hoppar över. Dina *inställningar* (spelläge och ljud) sparas däremot mellan besök.
 
 ## Två sätt att spela
 
@@ -27,7 +28,9 @@ Kugghjulet uppe till höger öppnar inställningarna, där du väljer spelläge.
 
 Spelplanen är en hel stad med Stockholm som inspiration: sex stadsdelar — city, Kungsholmen, Östermalm, Gamla stan, Söder och Djurgården — omgivna av vatten som inte går att köra i. Gatorna är riktiga gator snarare än ett rutnät, från Kungsgatan och Klarabergsgatan i city till Hornsgatan och Ringvägen i söder och Strandvägen på Östermalm. Sju broar binder ihop stadsdelarna och blir flaskhalsar värda att planera kring. Parker som Humlegården, Tantolunden och Vitabergsparken ligger i vägen och måste köras runt.
 
-Platserna ligger utspridda över hela stan, så en enda leverans kan gå från Djurgården i öster till Söder och kräva laddstopp på vägen. Fyra laddstationer, två matställen och två ställen att sova på finns spridda över stadsdelarna.
+Platserna ligger utspridda över hela stan, så en enda leverans kan gå från Djurgården i öster till Söder och kräva laddstopp på vägen. Det finns bara **två laddstationer**, två matställen och två ställen att sova på — räckvidden måste planeras.
+
+Husen och symbolerna håller sin storlek på skärmen när du zoomar, så de går att läsa lika bra i översikt som inzoomat. Där platserna ligger tätt krymper de precis så mycket att de inte överlappar. Runt staden finns gott om vatten att panorera och zooma fritt i.
 
 Kartan börjar centrerad på bilen och **kameran följer henne** medan hon kör. Dra för att titta någon annanstans — då släpper följningen — och tryck på bilknappen nere till höger för att följa igen. Mål som hamnar utanför skärmen visas som pilar i kanten med platsens symbol. Nyp eller scrolla för att zooma; knapparna nere till höger zoomar in, ut och ramar in hela stan. Gatunamnen dyker upp när du zoomar in, och skyltarna växer när du zoomar ut så att de går att se och träffa även i översikt.
 

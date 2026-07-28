@@ -5,9 +5,22 @@
    Vanilla JS + Canvas. Symboler: game-icons.net (CC BY 3.0)
    ============================================================ */
 
-const VERSION = '1.9.0';
+const VERSION = '2.0.0';
 
 const CHANGELOG = [
+  {
+    version: '2.0.0',
+    date: '2026-07-28',
+    items: [
+      'Hus och symboler är flera gånger större och krymper inte längre när du zoomar ut — de håller sin storlek på skärmen och krymper bara där grannplatserna ligger tätt, så inget överlappar.',
+      'Bilen är vit och rejält tilltagen.',
+      'Sömn visas med zzz i stället för kaffekopp, och mätarna har fått var sin färg: grönt för ström, blått för sömn, orange för mat.',
+      'Laddstationer, matställen och viloställen bär nu samma symboler och färger som mätarna, så de är lätta att hitta på kartan.',
+      'Bara två laddstationer kvar — räckvidden måste planeras.',
+      'Gott om vatten runt staden och lägre lägsta zoom, så du kan dra och zooma fritt.',
+      'Inställningarna för spelläge och ljud sparas mellan sidladdningar (spelframstegen börjar fortfarande om).'
+    ]
+  },
   {
     version: '1.9.0',
     date: '2026-07-28',
@@ -325,14 +338,12 @@ const LOC_DEFS = {
   blomsteraffaren: { node: 'om_f', name: "Blomsteraff\u00e4ren", kind: 'shop', color: '#e8c84a', icon: 'sunflower' },
   hotellet: { node: 'om_c', name: "Hotellet", kind: 'shop', color: '#b18ae0', icon: 'wine' },
   skolan: { node: 'kh_g', name: "Skolan", kind: 'shop', color: '#a3d977', icon: 'apple' },
-  laddCity: { node: 'nm_f', name: "Laddstation City", kind: 'service', color: '#57c26b', icon: 'gasPump', service: 'charge' },
-  laddSoder: { node: 'sm_i', name: "Laddstation S\u00f6der", kind: 'service', color: '#57c26b', icon: 'gasPump', service: 'charge' },
-  laddOster: { node: 'om_e', name: "Laddstation \u00d6ster", kind: 'service', color: '#57c26b', icon: 'gasPump', service: 'charge' },
-  laddVast: { node: 'kh_c', name: "Laddstation V\u00e4st", kind: 'service', color: '#57c26b', icon: 'gasPump', service: 'charge' },
-  matstallet: { node: 'sm_b', name: "Matst\u00e4llet", kind: 'service', color: '#f0913d', icon: 'burger', service: 'eat' },
-  vandrarhemmet: { node: 'kh_f', name: "Vandrarhemmet", kind: 'service', color: '#b18ae0', icon: 'bed', service: 'sleep' },
-  vilohemmet: { node: 'dj_d', name: "Vilohemmet", kind: 'service', color: '#b18ae0', icon: 'bed', service: 'sleep' },
-  korvkiosken: { node: 'om_b', name: "Korvkiosken", kind: 'service', color: '#f0913d', icon: 'burger', service: 'eat' },
+  laddCity: { node: 'nm_f', name: "Laddstation City", kind: 'service', color: '#57c26b', icon: 'charge', service: 'charge' },
+  laddSoder: { node: 'sm_i', name: "Laddstation S\u00f6der", kind: 'service', color: '#57c26b', icon: 'charge', service: 'charge' },
+  matstallet: { node: 'sm_b', name: "Matst\u00e4llet", kind: 'service', color: '#f0913d', icon: 'knifeFork', service: 'eat' },
+  vandrarhemmet: { node: 'kh_f', name: "Vandrarhemmet", kind: 'service', color: '#5aa9e6', icon: 'nightSleep', service: 'sleep' },
+  vilohemmet: { node: 'dj_d', name: "Vilohemmet", kind: 'service', color: '#5aa9e6', icon: 'nightSleep', service: 'sleep' },
+  korvkiosken: { node: 'om_b', name: "Korvkiosken", kind: 'service', color: '#f0913d', icon: 'knifeFork', service: 'eat' },
 };
 
 const LOC_OFFSETS = {
@@ -351,8 +362,6 @@ const LOC_OFFSETS = {
   skolan: [81, 81],
   laddCity: [-44, 106],
   laddSoder: [0, 115],
-  laddOster: [-81, 81],
-  laddVast: [0, -115],
   matstallet: [44, -106],
   vandrarhemmet: [0, -115],
   vilohemmet: [106, 44],
@@ -398,7 +407,7 @@ const LEVELS = [
     story: 'Fisken ligger längst ut i öster och ska till söder. Långt att köra — ladda på vägen.',
     timeLimit: 68, reward: 600,
     deliveries: [{ from: 'fisken', to: 'fiskrest', item: 'fish' }],
-    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast']
+    extra: ['laddCity', 'laddSoder']
   },
   {
     title: 'Mjölk och grönsaker',
@@ -408,7 +417,7 @@ const LEVELS = [
       { from: 'mejeriet', to: 'cafeet', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' }
     ],
-    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast']
+    extra: ['laddCity', 'laddSoder']
   },
   {
     title: 'Lunchrusningen',
@@ -419,28 +428,28 @@ const LEVELS = [
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
-    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast']
+    extra: ['laddCity', 'laddSoder']
   },
   {
     title: 'Långpasset',
     story: 'Ett långt pass. Du har redan kört i dag, så planera in mat och vila.',
-    timeLimit: 250, reward: 1100, startEnergy: 60, startFood: 55,
+    timeLimit: 330, reward: 1100, startEnergy: 60, startFood: 55,
     deliveries: [
       { from: 'mejeriet', to: 'cafeet', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
-    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
+    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
   },
   {
     title: 'Över broarna',
     story: 'Lådorna står i lagret på Gamla stan. Enda vägen ut går över broarna.',
-    timeLimit: 115, reward: 1000,
+    timeLimit: 125, reward: 1000,
     deliveries: [
       { from: 'lagret', to: 'glassbaren', item: 'crate' },
       { from: 'mejeriet', to: 'cafeet', item: 'milk' }
     ],
-    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken']
+    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken']
   },
   {
     title: 'Blommor och vin',
@@ -451,35 +460,35 @@ const LEVELS = [
       { from: 'bryggeriet', to: 'hotellet', item: 'beer' },
       { from: 'bageriet', to: 'cafeet', item: 'bread' }
     ],
-    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
+    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
   },
   {
     title: 'Storleveransen',
     story: 'Fyra leveranser. Ett större flak sparar många vändor.',
-    timeLimit: 180, reward: 1600, startEnergy: 65,
+    timeLimit: 200, reward: 1600, startEnergy: 65,
     deliveries: [
       { from: 'lagret', to: 'skolan', item: 'crate' },
       { from: 'mejeriet', to: 'skolan', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'bageriet', to: 'cafeet', item: 'bread' }
     ],
-    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
+    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
   },
   {
     title: 'Expressrundan',
     story: 'Tre leveranser på kort tid, från öster till söder. Undvik omvägar.',
-    timeLimit: 180, reward: 1800,
+    timeLimit: 250, reward: 1800,
     deliveries: [
       { from: 'bageriet', to: 'glassbaren', item: 'cake' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' },
       { from: 'bryggeriet', to: 'hotellet', item: 'beer' }
     ],
-    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
+    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
   },
   {
     title: 'Hela stan',
     story: 'Sista passet: fem leveranser i stadens alla delar. Ladda, ät och sov i rätt lägen.',
-    timeLimit: 350, reward: 2400, startEnergy: 70, startFood: 60,
+    timeLimit: 370, reward: 2400, startEnergy: 70, startFood: 60,
     deliveries: [
       { from: 'mejeriet', to: 'cafeet', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
@@ -487,7 +496,7 @@ const LEVELS = [
       { from: 'bryggeriet', to: 'hotellet', item: 'beer' },
       { from: 'lagret', to: 'skolan', item: 'crate' }
     ],
-    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
+    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
   }
 ];
 
@@ -532,11 +541,35 @@ const BAL = {
    Vill man hoppa till ett senare uppdrag finns uppdragsväljaren i
    inställningarna, och man får då med sig lönen för passen man hoppat över. */
 
+const SETTINGS_KEY = 'delivery-girl-settings';
+
+// Bara inställningarna sparas — nivå, pengar och uppgraderingar
+// börjar om vid varje sidladdning.
+function loadSettings() {
+  const def = { mode: 'realtime', sound: true };
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return def;
+    const s = JSON.parse(raw);
+    return {
+      mode: s.mode === 'planning' ? 'planning' : 'realtime',
+      sound: s.sound !== false
+    };
+  } catch (e) { return def; }
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ mode: run.mode, sound: run.sound }));
+  } catch (e) { /* privat läge m.m. */ }
+}
+
 function newRun() {
+  const set = loadSettings();
   return {
     level: 0, money: 0,
-    mode: 'realtime', // 'realtime' = välj åtgärder medan bilen kör, 'planning' = planera först
-    sound: true,
+    mode: set.mode, // 'realtime' = välj åtgärder medan bilen kör, 'planning' = planera först
+    sound: set.sound,
     upgrades: { batteryCap: 0, chargeSpeed: 0, cargo: 0, thermos: 0, coolbox: 0 }
   };
 }
@@ -821,7 +854,7 @@ function truckWarning() {
   const worst = Math.min(b, e, f);
   if (worst >= 0.25) return null;
   if (worst === b) return 'charge';
-  if (worst === e) return 'coffee';
+  if (worst === e) return 'nightSleep';
   return 'meal';
 }
 
@@ -1178,6 +1211,7 @@ function showSettingsModal() {
   });
   $('#soundToggle').addEventListener('click', () => {
     run.sound = !run.sound;
+    saveSettings();
     if (run.sound) { wakeAudio(); SFX.ui(); }
     toast(run.sound ? 'Ljud på.' : 'Ljud av.', run.sound ? 'soundOn' : 'soundOff');
     showSettingsModal();
@@ -1206,6 +1240,7 @@ function catchUpMoney(levelIndex) {
 function setMode(mode) {
   if (run.mode === mode) return;
   run.mode = mode;
+  saveSettings();
   if (mode === 'planning') {
     // Pausa så spelaren hinner planera klart
     game.running = false;
@@ -1236,8 +1271,8 @@ function showChangelogModal() {
 
 const BAR_DEFS = [
   { key: 'battery', icon: 'battery',   label: 'Batteri', col: '#57c26b', col2: '#8ce89f', max: batteryMax },
-  { key: 'energy',  icon: 'coffee',    label: 'Energi',  col: '#5aa9e6', col2: '#93cdf6', max: () => BAL.energyMax },
-  { key: 'food',    icon: 'knifeFork', label: 'Mat',     col: '#a3d977', col2: '#cdf0a4', max: () => BAL.foodMax }
+  { key: 'energy',  icon: 'nightSleep', label: 'Sömn', col: '#5aa9e6', col2: '#93cdf6', max: () => BAL.energyMax },
+  { key: 'food',    icon: 'knifeFork',  label: 'Mat',  col: '#f0913d', col2: '#f7c48a', max: () => BAL.foodMax }
 ];
 
 function renderStatus() {
@@ -1394,7 +1429,8 @@ let viewW = 0, viewH = 0, dpr = 1;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // Landsbygden fortsätter en bra bit utanför vägnätet, så vyn aldrig tar slut
-const TERRAIN = 500;
+// Rejält med vatten runt staden, så man kan dra och zooma fritt
+const TERRAIN = 2600;
 // Landytans utsträckning — startvyn ska rama in staden, inte havet omkring
 const CONTENT = (function () {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -1408,7 +1444,7 @@ const CONTENT = (function () {
 
 const fitScale = () => Math.min(viewW / CONTENT.w, viewH / CONTENT.h);
 const coverScale = () => Math.max(viewW / CONTENT.w, viewH / CONTENT.h);
-const minScale = () => fitScale() * 0.6;
+const minScale = () => fitScale() * 0.34;
 const maxScale = () => Math.max(fitScale() * 3.6, 2);
 
 // Visa hela vägnätet från start, men zooma in något på riktigt smala
@@ -1575,6 +1611,7 @@ function draw() {
   drawStreetNames();
   drawScenery();
   drawRoute();
+  refreshNeighbours();
   for (const id of game.places) drawLocation(LOCATIONS[id]);
   drawLabels();
   drawRouteBadges();
@@ -1817,14 +1854,14 @@ function drawRouteBadges() {
     const item = game.queue[s.index];
     if (!item) continue;
     const loc = LOCATIONS[item.locId];
-    const off = markerSize() / 2 + 4;
+    const off = markerSize(loc) / 2 + 4;
     const b = badges[item.locId] || (badges[item.locId] = { x: markerX(loc) - off, y: markerY(loc) - off, nums: [] });
     b.nums.push(s.index + 1);
   }
   for (const k in badges) {
     const b = badges[k];
     const label = b.nums.join(',');
-    const r = (15 + (label.length - 1) * 3.5) * clamp(markerSize() / 62, 1, 1.9);
+    const r = (15 + (label.length - 1) * 3.5) * clamp(markerSize() / 62, 1, 2.6);
     ctx.beginPath();
     ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
     ctx.fillStyle = '#f6b93b';
@@ -1882,9 +1919,39 @@ function roundRect(x, y, w, h, r) {
 
 const markerX = loc => loc.x + (loc.ox || 0);
 const markerY = loc => loc.y + (loc.oy || 0);
-// Husen ritas större i världsmått när man zoomar ut, så de aldrig blir
-// omöjliga att se eller träffa i översiktsvyn.
-const markerSize = () => clamp(46 / cam.scale, 62, 150);
+/* Smart skalning av skyltarna: de hålls ungefär lika stora på skärmen
+   oavsett zoom, men får aldrig bli så stora att grannplatserna hamnar
+   ovanpå varandra. Ensligt liggande platser blir därför stora, tätt
+   liggande något mindre — och inget överlappar. */
+
+// Hur stora skyltarna ska vara på skärmen — något mindre på en telefon
+// så de inte tar över hela vyn
+const markerOnScreen = () => Math.min(124, Math.max(74, viewW * 0.22));
+let neighbourGap = {};
+let neighbourKey = '';
+
+function refreshNeighbours() {
+  const key = [...game.places].sort().join(',');
+  if (key === neighbourKey) return;
+  neighbourKey = key;
+  neighbourGap = {};
+  const ids = [...game.places];
+  for (const a of ids) {
+    let best = 2400;
+    for (const b of ids) {
+      if (a === b) continue;
+      const A = LOCATIONS[a], B = LOCATIONS[b];
+      const d = Math.hypot(markerX(A) - markerX(B), markerY(A) - markerY(B));
+      if (d < best) best = d;
+    }
+    neighbourGap[a] = best;
+  }
+}
+
+function markerSize(loc) {
+  const room = loc ? (neighbourGap[loc.id] || 2400) * 0.84 : 2400;
+  return clamp(Math.min(markerOnScreen() / cam.scale, room), 90, 1500);
+}
 
 // Etiketter samlas upp under ritningen och placeras sist, så att två
 // namn aldrig hamnar ovanpå varandra i översiktsvyn.
@@ -1948,7 +2015,7 @@ function drawShop(loc, mx, my, s, highlight) {
   ctx.shadowColor = 'rgba(0,0,0,0.45)';
   ctx.shadowBlur = s * 0.2;
   ctx.shadowOffsetY = s * 0.07;
-  // Tak
+  // Tak i platsens färg — grönt för ström, orange för mat, blått för sömn
   ctx.beginPath();
   ctx.moveTo(mx - w * 0.62, top);
   ctx.lineTo(mx, top - s * 0.42);
@@ -2014,7 +2081,7 @@ function drawLocation(loc) {
   const pickup = game.deliveries.some(d => d.state === 'waiting' && d.from === loc.id);
   const wants = game.deliveries.filter(d => d.state !== 'done' && d.to === loc.id);
   const ready = game.deliveries.some(d => d.state === 'carried' && d.to === loc.id);
-  const s = markerSize();
+  const s = markerSize(loc);
   const mx = markerX(loc), my = markerY(loc);
 
   // Infart från gatan fram till huset
@@ -2043,8 +2110,8 @@ function drawLocation(loc) {
   });
 }
 
-// Bilen ritas rejält tilltagen så man alltid ser var hon är
-const truckSize = () => clamp(62 / cam.scale, 84, 210);
+// Bilen hålls också skärmkonstant, och något större än husen
+const truckSize = () => clamp(Math.min(128, Math.max(80, viewW * 0.23)) / cam.scale, 110, 1500);
 
 // Liten ring där man tryckte, så man ser att trycket gick fram
 const pulses = [];
@@ -2075,7 +2142,7 @@ function drawTruck() {
   ctx.save();
   ctx.translate(t.x, t.y);
   if (t.facing < 0) ctx.scale(-1, 1);
-  const c = rasterIcon('truck', '#f6b93b', ts);
+  const c = rasterIcon('truck', '#f2f6fb', ts);
   if (c) ctx.drawImage(c, -ts / 2, -ts * 0.54, ts, ts);
   ctx.restore();
 
@@ -2242,11 +2309,11 @@ canvas.addEventListener('wheel', ev => {
 function locationAt(wx, wy) {
   // Träffytan räknas i skärmpixlar så den alltid är tumstor, oavsett zoom
   const touch = matchMedia('(pointer: coarse)').matches;
-  const rHouse = Math.max(markerSize() * 0.62, (touch ? 30 : 24) / cam.scale);
   const rNode = Math.max(34, (touch ? 22 : 16) / cam.scale);
   let best = null, bestD = Infinity;
   for (const id of game.places) {
     const L = LOCATIONS[id];
+    const rHouse = Math.max(markerSize(L) * 0.62, (touch ? 30 : 24) / cam.scale);
     const d = Math.min(
       Math.hypot(markerX(L) - wx, markerY(L) - wy) / rHouse,
       Math.hypot(L.x - wx, L.y - wy) / rNode
