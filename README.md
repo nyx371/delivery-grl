@@ -9,6 +9,7 @@ Du är Delivery Girl och kör stadens lilla eldrivna lastbil. Hämta varor och k
 - **10 uppdrag** med korta beskrivningar och tidsgränser.
 - **Enkelt bildspråk:** ett hämtställe ritas som en hög med fem varor, en butik som ett hus med en skylt för vad den handlar med, och den som väntar på en leverans har en gungande pratbubbla med symbolen för varan den vill ha.
 - **Bara det som hör till uppdraget syns** på kartan. Fler platser dyker upp allt eftersom uppdragen blir svårare.
+- **Uppdragslista** uppe till höger som stryks över allt eftersom leveranserna kommer fram.
 - **Kön med åtgärder:** köa hur många stopp du vill — kör, ladda, ät, sov. Varje rad i körschemat har ett **X** för att plocka bort just den, och du kan lägga till och ta bort stopp även medan bilen rullar.
 - **Uppdraget är klart** så fort sista leveransen är framme. Bilen börjar dagen på en startplats i stan, men du behöver inte köra tillbaka dit.
 - **Tre resurser:** bilens batteri, din energi och din mat. Ladda på laddstationen, ät på matstället och sov på vandrarhemmet. Börjar något ta slut kryper bilen fram och visar en pratbubbla med vad som fattas. Långpassen börjar med trött förare, så vila måste planeras in.
@@ -24,15 +25,17 @@ Kugghjulet uppe till höger öppnar inställningarna, där du väljer spelläge.
 
 ## Kartan
 
-Spelplanen är en stadsö i Södermalms anda, omgiven av vatten som inte går att köra i. Gatorna är riktiga gator snarare än ett rutnät: Götgatan går genom stan från norr till söder, Hornsgatan västerut, Ringvägen kröker sig runt söderkanten, och Katarinavägen följer kajen. Parker och berg som Vitabergsparken och Tantolunden ligger i vägen och måste köras runt. Två broar leder till fastlandet — Slussenbron upp till lagret och Skanstullsbron ner till vandrarhemmet — vilket gör dem till flaskhalsar värda att planera kring.
+Spelplanen är en hel stad med Stockholm som inspiration: sex stadsdelar — city, Kungsholmen, Östermalm, Gamla stan, Söder och Djurgården — omgivna av vatten som inte går att köra i. Gatorna är riktiga gator snarare än ett rutnät, från Kungsgatan och Klarabergsgatan i city till Hornsgatan och Ringvägen i söder och Strandvägen på Östermalm. Sju broar binder ihop stadsdelarna och blir flaskhalsar värda att planera kring. Parker som Humlegården, Tantolunden och Vitabergsparken ligger i vägen och måste köras runt.
 
-Kartan fyller hela webbläsarfönstret oavsett skärmform. Dra för att panorera, nyp eller scrolla för att zooma; knapparna nere till höger zoomar in, ut och ramar in hela stan. Gatunamnen dyker upp när du zoomar in, och skyltarna växer när du zoomar ut så att de går att se och träffa även i översikt.
+Platserna ligger utspridda över hela stan, så en enda leverans kan gå från Djurgården i öster till Söder och kräva laddstopp på vägen. Fyra laddstationer, två matställen och två ställen att sova på finns spridda över stadsdelarna.
+
+Kartan börjar centrerad på bilen och fyller hela webbläsarfönstret oavsett skärmform. Dra för att panorera, nyp eller scrolla för att zooma; knapparna nere till höger zoomar in, ut och ramar in hela stan. Gatunamnen dyker upp när du zoomar in, och skyltarna växer när du zoomar ut så att de går att se och träffa även i översikt.
 
 ## Teknik
 
 - Vanilla JS + Canvas, en enda statisk sida (`index.html`, `style.css`, `game.js`, `icons.js`).
 - Dubbeltryck-zoom, nyp-zoom på sidan, textmarkering och iOS-förstoringsglas är avstängda för en app-lik känsla på mobil. Knappar och träffytor är tumstora på pekskärmar, och träffytan för en plats mäts i skärmpixlar så den är lika lätt att träffa vid alla zoomnivåer.
-- Versionsnummer och ändringslogg visas i spelet — tryck på versionsknappen (v…) uppe till höger.
+- Minimalt gränssnitt: pengarna visas i butiken och versionsnumret med ändringslogg i inställningsmenyn.
 - **Cache-busting:** `tools/cache-bust.js` stämplar innehållshashar på `style.css`, `icons.js` och `game.js` i `index.html`. Det körs automatiskt vid varje push av `.github/workflows/cache-bust.yml`, som committar tillbaka uppdaterade hashar när något ändrats. Kör det lokalt med `node tools/cache-bust.js`, eller aktivera pre-commit-hooken en gång per klon med `git config core.hooksPath .githooks` så stämplas det redan vid commit.
 
 ## Attribution

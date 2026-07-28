@@ -5,9 +5,22 @@
    Vanilla JS + Canvas. Symboler: game-icons.net (CC BY 3.0)
    ============================================================ */
 
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 
 const CHANGELOG = [
+  {
+    version: '1.7.0',
+    date: '2026-07-28',
+    items: [
+      'Mycket större och svårare karta: hela staden med sex stadsdelar — city, Kungsholmen, Östermalm, Gamla stan, Söder och Djurgården — med Stockholm som inspiration.',
+      'Sju broar binder ihop stadsdelarna och blir flaskhalsar att planera kring.',
+      'Platserna ligger utspridda över hela stan, så en leverans kan vara flera tusen meter lång och kräva laddstopp på vägen.',
+      'Fyra laddstationer, två matställen och två ställen att sova på, spridda över stadsdelarna.',
+      'Uppdragen visas som en lista uppe till höger och stryks över när de är levererade.',
+      'Kartan börjar centrerad på bilen, och bilens symbol är rejält större.',
+      'Minimalare gränssnitt: pengarna bor i butiken och versionen i menyn.'
+    ]
+  },
   {
     version: '1.6.0',
     date: '2026-07-28',
@@ -101,74 +114,117 @@ const CHANGELOG = [
    en lång huvudgata norrut–söderut, en krokig ringväg runt söderkanten,
    branta parker man inte kan köra i, och två broar till fastlandet. */
 
-const W = 3200, H = 2400;
+const W = 5400, H = 4000;
+const START_NODE = "nm_i";
 
-// Vägkorsningar. Allt annat härleds ur gatorna nedan.
+// Vägkorsningar i stadens sex delar
 const NODES = {
-  gamlastan:  [1210, 430],   // fastlandet i norr, andra sidan bron
-  slussen:    [1250, 700],
-  mariatorget:[1255, 850],
-  medis:      [1270, 1010],  // Medborgarplatsen
-  gotg4:      [1290, 1190],
-  gotg5:      [1305, 1400],
-  skanstull:  [1325, 1620],
-  arsta:      [1370, 1880],  // fastlandet i söder
-
-  horns1:     [1060, 900],
-  horns2:     [860, 960],
-  horns3:     [660, 1030],
-  hornstull:  [450, 1120],
-
-  bergs1:     [470, 930],
-  bergs2:     [680, 840],
-  bergs3:     [930, 780],
-
-  sweden1:    [840, 1140],
-  sweden2:    [810, 1300],
-
-  ring1:      [520, 1290],
-  ring2:      [790, 1420],
-  ring3:      [1060, 1520],
-  ring5:      [1610, 1560],
-  ring6:      [1870, 1490],
-  ring7:      [2120, 1390],
-  ring8:      [2340, 1250],
-  ring9:      [2450, 1060],
-
-  folk1:      [1520, 1000],
-  folk2:      [1780, 990],
-  folk3:      [2040, 1000],
-  folk4:      [2280, 1040],
-
-  kat1:       [1500, 740],
-  kat2:       [1780, 770],
-  kat3:       [2060, 810],
-  kat4:       [2320, 880],
-
-  rens1:      [1810, 1180],
-  rens2:      [1840, 1340],
-  skane1:     [1550, 1185],  // Nytorget
-  bonde1:     [1570, 1370]
+  kh_a: [700, 1690],
+  kh_b: [1050, 1620],
+  kh_c: [1400, 1620],
+  kh_d: [1660, 1680],
+  kh_e: [740, 1900],
+  kh_f: [1090, 1870],
+  kh_g: [1440, 1860],
+  kh_h: [1150, 2010],
+  nm_a: [1980, 1140],
+  nm_b: [2320, 1090],
+  nm_c: [2660, 1080],
+  nm_d: [2970, 1130],
+  nm_e: [2000, 1440],
+  nm_f: [2350, 1410],
+  nm_g: [2700, 1400],
+  nm_h: [3000, 1440],
+  nm_i: [2120, 1670],
+  nm_j: [2500, 1650],
+  nm_k: [2860, 1630],
+  om_a: [3450, 1160],
+  om_b: [3820, 1090],
+  om_c: [4200, 1070],
+  om_d: [4520, 1170],
+  om_e: [3490, 1480],
+  om_f: [3860, 1450],
+  om_g: [4240, 1430],
+  om_h: [4540, 1500],
+  om_i: [3900, 1730],
+  om_j: [4300, 1700],
+  gs_a: [2290, 2150],
+  gs_b: [2290, 2410],
+  sm_a: [1200, 3060],
+  sm_b: [1720, 2960],
+  sm_c: [2270, 2910],
+  sm_d: [2820, 2930],
+  sm_e: [3320, 3010],
+  sm_f: [1260, 3360],
+  sm_g: [1770, 3310],
+  sm_h: [2320, 3290],
+  sm_i: [2870, 3310],
+  sm_j: [3370, 3340],
+  dj_a: [4050, 2400],
+  dj_b: [4450, 2330],
+  dj_c: [4760, 2470],
+  dj_d: [4300, 2700],
+  dj_e: [3950, 2740],
 };
 
-// Gator som polylinjer — ger både vägnätet och hur de ritas ut
+// Gator och broar som polylinjer
 const STREETS = [
-  { name: 'Götgatan',        nodes: ['slussen', 'mariatorget', 'medis', 'gotg4', 'gotg5', 'skanstull'], big: true },
-  { name: 'Hornsgatan',      nodes: ['mariatorget', 'horns1', 'horns2', 'horns3', 'hornstull'], big: true },
-  { name: 'Folkungagatan',   nodes: ['medis', 'folk1', 'folk2', 'folk3', 'folk4', 'ring9'], big: true },
-  { name: 'Ringvägen',       nodes: ['hornstull', 'ring1', 'ring2', 'ring3', 'skanstull', 'ring5', 'ring6', 'ring7', 'ring8', 'ring9'], big: true },
-  { name: 'Katarinavägen',   nodes: ['slussen', 'kat1', 'kat2', 'kat3', 'kat4', 'ring9'], big: true },
-  { name: 'Bergsgatan',      nodes: ['hornstull', 'bergs1', 'bergs2', 'bergs3', 'slussen'] },
-  { name: 'Swedenborgsgatan',nodes: ['horns2', 'sweden1', 'sweden2', 'ring2'] },
-  { name: 'Renstiernas gata',nodes: ['folk2', 'rens1', 'rens2', 'ring6'] },
-  { name: 'Skånegatan',      nodes: ['gotg4', 'skane1', 'rens1'] },
-  { name: 'Bondegatan',      nodes: ['gotg5', 'bonde1', 'rens2'] },
-  { name: 'Ansgariegatan',   nodes: ['horns3', 'ring1'] },
-  { name: 'Blekingegatan',   nodes: ['gotg5', 'ring3'] },
-  { name: 'Nytorgsgatan',    nodes: ['skane1', 'bonde1'] },
-  { name: 'Tjärhovsgatan',   nodes: ['folk1', 'skane1'] },
-  { name: 'Slussenbron',     nodes: ['slussen', 'gamlastan'], bridge: true },
-  { name: 'Skanstullsbron',  nodes: ['skanstull', 'arsta'], bridge: true }
+  { name: "Hantverkargatan", nodes: ['kh_a', 'kh_b', 'kh_c', 'kh_d'], big: true },
+  { name: "Fleminggatan", nodes: ['kh_e', 'kh_f', 'kh_g'], big: true },
+  { name: "S:t Eriksgatan", nodes: ['kh_a', 'kh_e'] },
+  { name: "Scheelegatan", nodes: ['kh_c', 'kh_g'] },
+  { name: "Norr M\u00e4larstrand", nodes: ['kh_f', 'kh_h'] },
+  { name: "Kungsgatan", nodes: ['nm_a', 'nm_b', 'nm_c', 'nm_d'], big: true },
+  { name: "Klarabergsgatan", nodes: ['nm_e', 'nm_f', 'nm_g', 'nm_h'], big: true },
+  { name: "Tegelbacken", nodes: ['nm_i', 'nm_j', 'nm_k'], big: true },
+  { name: "Vasagatan", nodes: ['nm_a', 'nm_e', 'nm_i'] },
+  { name: "Sveav\u00e4gen", nodes: ['nm_c', 'nm_g', 'nm_k'] },
+  { name: "Drottninggatan", nodes: ['nm_b', 'nm_f', 'nm_j'] },
+  { name: "Karlav\u00e4gen", nodes: ['om_a', 'om_b', 'om_c', 'om_d'], big: true },
+  { name: "Strandv\u00e4gen", nodes: ['om_e', 'om_f', 'om_g', 'om_h'], big: true },
+  { name: "Narvav\u00e4gen", nodes: ['om_c', 'om_g', 'om_j'] },
+  { name: "Grev Turegatan", nodes: ['om_a', 'om_e', 'om_i'] },
+  { name: "Linn\u00e9gatan", nodes: ['om_i', 'om_j'] },
+  { name: "V\u00e4sterl\u00e5nggatan", nodes: ['gs_a', 'gs_b'], big: true },
+  { name: "Hornsgatan", nodes: ['sm_a', 'sm_b', 'sm_c', 'sm_d', 'sm_e'], big: true },
+  { name: "Ringv\u00e4gen", nodes: ['sm_f', 'sm_g', 'sm_h', 'sm_i', 'sm_j'], big: true },
+  { name: "Torkel Knutssonsgatan", nodes: ['sm_a', 'sm_f'] },
+  { name: "G\u00f6tgatan", nodes: ['sm_c', 'sm_h'], big: true },
+  { name: "Renstiernas gata", nodes: ['sm_e', 'sm_j'] },
+  { name: "Swedenborgsgatan", nodes: ['sm_b', 'sm_g'] },
+  { name: "Nyn\u00e4sv\u00e4gen", nodes: ['sm_d', 'sm_i'] },
+  { name: "Djurg\u00e5rdsv\u00e4gen", nodes: ['dj_a', 'dj_b', 'dj_c'], big: true },
+  { name: "Rosendalsv\u00e4gen", nodes: ['dj_a', 'dj_e', 'dj_d', 'dj_b'] },
+  { name: "Stadshusbron", nodes: ['kh_d', 'nm_i'], bridge: true },
+  { name: "V\u00e4sterbron", nodes: ['kh_h', 'sm_b'], bridge: true },
+  { name: "Vasabron", nodes: ['nm_i', 'gs_a'], bridge: true },
+  { name: "Slussen", nodes: ['gs_b', 'sm_c'], bridge: true },
+  { name: "Nybrobron", nodes: ['nm_d', 'om_a'], bridge: true },
+  { name: "Djurg\u00e5rdsbron", nodes: ['om_i', 'dj_a'], bridge: true },
+  { name: "Danviksbron", nodes: ['sm_e', 'dj_e'], bridge: true },
+];
+
+// Stadsdelarna. Allt utanför är vatten.
+const KUNGSHOLMEN = [[430, 1520], [900, 1400], [1400, 1420], [1720, 1520], [1780, 1750], [1650, 1990], [1250, 2090], [780, 2060], [450, 1870]];
+const NORRMALM = [[1870, 920], [2500, 860], [3000, 900], [3160, 1120], [3120, 1480], [2950, 1700], [2500, 1790], [2050, 1740], [1860, 1480]];
+const OSTERMALM = [[3300, 980], [3900, 910], [4400, 970], [4680, 1160], [4720, 1520], [4520, 1800], [4020, 1900], [3560, 1840], [3320, 1560]];
+const GAMLASTAN = [[2030, 2060], [2400, 2030], [2570, 2160], [2580, 2410], [2430, 2530], [2120, 2540], [2010, 2390]];
+const SODERMALM = [[930, 2870], [1500, 2730], [2200, 2690], [2900, 2710], [3400, 2790], [3660, 2960], [3710, 3260], [3460, 3510], [2900, 3630], [2200, 3670], [1500, 3610], [1060, 3410], [900, 3110]];
+const DJURGARDEN = [[3880, 2170], [4480, 2110], [4880, 2260], [4980, 2560], [4830, 2820], [4400, 2910], [4000, 2860], [3830, 2610]];
+const LANDS = [KUNGSHOLMEN, NORRMALM, OSTERMALM, GAMLASTAN, SODERMALM, DJURGARDEN];
+
+// Parker och berg — vackra, men inget man kör igenom
+const PARKS = [
+  { name: "R\u00e5lambshovsparken", cx: 640, cy: 1780, rx: 150, ry: 120 },
+  { name: "Kungstr\u00e4dg\u00e5rden", cx: 2560, cy: 1540, rx: 130, ry: 95 },
+  { name: "Observatorielunden", cx: 2180, cy: 1270, rx: 120, ry: 95 },
+  { name: "Humleg\u00e5rden", cx: 3660, cy: 1290, rx: 160, ry: 120 },
+  { name: "G\u00e4rdet", cx: 4420, cy: 1620, rx: 150, ry: 110 },
+  { name: "Vitabergsparken", cx: 3080, cy: 3130, rx: 160, ry: 120 },
+  { name: "Tantolunden", cx: 1480, cy: 3140, rx: 150, ry: 110 },
+  { name: "Skinnarviksberget", cx: 980, cy: 3210, rx: 120, ry: 90 },
+  { name: "Rosendal", cx: 4620, cy: 2660, rx: 150, ry: 120 },
+  { name: "Djurg\u00e5rdsbrunn", cx: 4120, cy: 2530, rx: 130, ry: 100 },
 ];
 
 function nodeKey(x, y) { return x + ',' + y; }
@@ -189,27 +245,6 @@ const graph = {};
     }
   }
 })();
-
-// Ön och fastlandsbitarna. Allt utanför är vatten som inte går att köra i.
-const ISLAND = [
-  [330, 1050], [420, 880], [620, 760], [900, 680], [1200, 620], [1500, 600],
-  [1800, 620], [2100, 660], [2350, 730], [2560, 830], [2680, 980], [2700, 1150],
-  [2620, 1320], [2450, 1450], [2200, 1550], [1950, 1620], [1700, 1680],
-  [1450, 1710], [1200, 1700], [950, 1650], [720, 1560], [520, 1420], [380, 1240]
-];
-const MAINLAND_N = [[880, 180], [1620, 180], [1660, 470], [1420, 520], [1080, 500], [860, 440]];
-const MAINLAND_S = [[1120, 1830], [1500, 1800], [1780, 1870], [1800, 2180], [1140, 2160]];
-const LANDS = [ISLAND, MAINLAND_N, MAINLAND_S];
-
-// Parker och berg — vackra, men inget man kör igenom
-const PARKS = [
-  { name: 'Vitabergsparken',    cx: 2000, cy: 1230, rx: 175, ry: 145 },
-  { name: 'Tantolunden',        cx: 700,  cy: 1555, rx: 175, ry: 95 },
-  { name: 'Skinnarviksberget',  cx: 855,  cy: 880,  rx: 115, ry: 70 },
-  { name: 'Vasaparken',         cx: 2270, cy: 1180, rx: 90,  ry: 70 },
-  { name: 'Fatbursparken',      cx: 1120, cy: 1300, rx: 120, ry: 85 },
-  { name: 'Rosenlundsparken',   cx: 1000, cy: 1130, rx: 95,  ry: 60 }
-];
 
 function pointInPoly(x, y, poly) {
   let inside = false;
@@ -254,39 +289,52 @@ function shortestPath(fromKey, toKey) {
    service. Bara de platser uppdraget handlar om visas. Bilen börjar vid
    en startpunkt i stan som inte är någon plats i sig. */
 
-const START_NODE = 'hornstull';
-
 const LOC_DEFS = {
-  // Hämtställen
-  bageriet: { node: 'mariatorget', name: 'Bageriet',     kind: 'pickup', item: 'bread',  color: '#e0b978' },
-  fisken:   { node: 'kat3',        name: 'Fiskhamnen',   kind: 'pickup', item: 'fish',   color: '#8fd3f4' },
-  odlingen: { node: 'ring3',       name: 'Odlingen',     kind: 'pickup', item: 'carrot', color: '#e08a4a' },
-  mejeriet: { node: 'bergs3',      name: 'Mejeriet',     kind: 'pickup', item: 'milk',   color: '#dfe6ee' },
-  lagret:   { node: 'gamlastan',   name: 'Lagret',       kind: 'pickup', item: 'crate',  color: '#c9a066' },
-  bryggeriet:{ node: 'ring7',      name: 'Bryggeriet',   kind: 'pickup', item: 'beer',   color: '#c98a3a' },
-
-  // Ställen som vill ha leverans
-  cafeet:   { node: 'medis',       name: 'Caféet',           kind: 'shop', icon: 'coffee',   color: '#d9a066' },
-  fiskrest: { node: 'skane1',      name: 'Fiskrestaurangen', kind: 'shop', icon: 'fish',     color: '#7fc4e8' },
-  pizzerian:{ node: 'folk2',       name: 'Pizzerian',        kind: 'shop', icon: 'pizza',    color: '#e2705a' },
-  glassbaren:{ node: 'ring5',      name: 'Glassbaren',       kind: 'shop', icon: 'icecream', color: '#f5b8d0' },
-  blomsteraffaren:{ node: 'sweden1',name: 'Blomsteraffären',  kind: 'shop', icon: 'sunflower',color: '#e8c84a' },
-  hotellet: { node: 'kat1',        name: 'Hotellet',         kind: 'shop', icon: 'wine',     color: '#b18ae0' },
-  skolan:   { node: 'bonde1',       name: 'Skolan',           kind: 'shop', icon: 'apple',    color: '#a3d977' },
-
-  // Service
-  laddstationen: { node: 'gotg4', name: 'Laddstationen', kind: 'service', icon: 'gasPump', color: '#57c26b', service: 'charge' },
-  matstallet:    { node: 'horns3', name: 'Matstället',   kind: 'service', icon: 'burger',  color: '#f0913d', service: 'eat' },
-  vandrarhemmet: { node: 'arsta',  name: 'Vandrarhemmet',kind: 'service', icon: 'bed',     color: '#b18ae0', service: 'sleep' }
+  bageriet: { node: 'nm_b', name: "Bageriet", kind: 'pickup', color: '#e0b978', item: 'bread' },
+  fisken: { node: 'dj_c', name: "Fiskhamnen", kind: 'pickup', color: '#8fd3f4', item: 'fish' },
+  odlingen: { node: 'sm_f', name: "Odlingen", kind: 'pickup', color: '#e08a4a', item: 'carrot' },
+  mejeriet: { node: 'kh_b', name: "Mejeriet", kind: 'pickup', color: '#dfe6ee', item: 'milk' },
+  lagret: { node: 'gs_a', name: "Lagret", kind: 'pickup', color: '#c9a066', item: 'crate' },
+  bryggeriet: { node: 'om_j', name: "Bryggeriet", kind: 'pickup', color: '#c98a3a', item: 'beer' },
+  cafeet: { node: 'nm_g', name: "Caf\u00e9et", kind: 'shop', color: '#d9a066', icon: 'coffee' },
+  fiskrest: { node: 'sm_h', name: "Fiskrestaurangen", kind: 'shop', color: '#7fc4e8', icon: 'fish' },
+  pizzerian: { node: 'sm_d', name: "Pizzerian", kind: 'shop', color: '#e2705a', icon: 'pizza' },
+  glassbaren: { node: 'dj_b', name: "Glassbaren", kind: 'shop', color: '#f5b8d0', icon: 'icecream' },
+  blomsteraffaren: { node: 'om_f', name: "Blomsteraff\u00e4ren", kind: 'shop', color: '#e8c84a', icon: 'sunflower' },
+  hotellet: { node: 'om_c', name: "Hotellet", kind: 'shop', color: '#b18ae0', icon: 'wine' },
+  skolan: { node: 'kh_g', name: "Skolan", kind: 'shop', color: '#a3d977', icon: 'apple' },
+  laddCity: { node: 'nm_f', name: "Laddstation City", kind: 'service', color: '#57c26b', icon: 'gasPump', service: 'charge' },
+  laddSoder: { node: 'sm_i', name: "Laddstation S\u00f6der", kind: 'service', color: '#57c26b', icon: 'gasPump', service: 'charge' },
+  laddOster: { node: 'om_e', name: "Laddstation \u00d6ster", kind: 'service', color: '#57c26b', icon: 'gasPump', service: 'charge' },
+  laddVast: { node: 'kh_c', name: "Laddstation V\u00e4st", kind: 'service', color: '#57c26b', icon: 'gasPump', service: 'charge' },
+  matstallet: { node: 'sm_b', name: "Matst\u00e4llet", kind: 'service', color: '#f0913d', icon: 'burger', service: 'eat' },
+  vandrarhemmet: { node: 'kh_f', name: "Vandrarhemmet", kind: 'service', color: '#b18ae0', icon: 'bed', service: 'sleep' },
+  vilohemmet: { node: 'dj_d', name: "Vilohemmet", kind: 'service', color: '#b18ae0', icon: 'bed', service: 'sleep' },
+  korvkiosken: { node: 'om_b', name: "Korvkiosken", kind: 'service', color: '#f0913d', icon: 'burger', service: 'eat' },
 };
 
-// Vart husen ställs i förhållande till korsningen de ligger vid
 const LOC_OFFSETS = {
-  bageriet: [-105, -72], fisken: [20, -100], odlingen: [-20, 100],
-  mejeriet: [10, -105], lagret: [-100, -70], bryggeriet: [95, 70],
-  cafeet: [-105, 80], fiskrest: [96, 78], pizzerian: [30, -100], glassbaren: [-30, 100],
-  blomsteraffaren: [-100, 60], hotellet: [-40, -100], skolan: [-40, 100],
-  laddstationen: [100, -60], matstallet: [-20, -98], vandrarhemmet: [105, 40]
+  bageriet: [0, -115],
+  fisken: [106, 44],
+  odlingen: [-81, 81],
+  mejeriet: [0, -115],
+  lagret: [115, 0],
+  bryggeriet: [106, 44],
+  cafeet: [81, -81],
+  fiskrest: [0, 115],
+  pizzerian: [0, -115],
+  glassbaren: [0, -115],
+  blomsteraffaren: [0, -115],
+  hotellet: [0, -115],
+  skolan: [81, 81],
+  laddCity: [-44, 106],
+  laddSoder: [0, 115],
+  laddOster: [-81, 81],
+  laddVast: [0, -115],
+  matstallet: [44, -106],
+  vandrarhemmet: [0, -115],
+  vilohemmet: [106, 44],
+  korvkiosken: [0, -115],
 };
 
 const LOCATIONS = {};
@@ -319,99 +367,97 @@ const SERVICE_TEXT = {
 const LEVELS = [
   {
     title: 'Bröd till caféet',
-    story: 'Hämta bröd i bageriet och kör det till caféet.',
+    story: 'Hämta bröd i bageriet och kör det till caféet. Båda ligger i city.',
     timeLimit: null, reward: 450,
-    deliveries: [{ from: 'bageriet', to: 'cafeet', item: 'bread' }],
+    deliveries: [{ from: 'bageriet', to: 'cafeet', item: 'bread' }]
   },
   {
-    title: 'Bröd och fisk',
-    story: 'Två leveranser. Flaket rymmer bara en last i taget, så det blir två vändor.',
-    timeLimit: 38, reward: 550,
-    deliveries: [
-      { from: 'bageriet', to: 'cafeet', item: 'bread' },
-      { from: 'fisken', to: 'fiskrest', item: 'fish' }
-    ],
+    title: 'Fisk över broarna',
+    story: 'Fisken ligger längst ut i öster och ska till söder. Långt att köra — ladda på vägen.',
+    timeLimit: 68, reward: 600,
+    deliveries: [{ from: 'fisken', to: 'fiskrest', item: 'fish' }],
+    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast']
   },
   {
-    title: 'Grönsaker till pizzerian',
-    story: 'Längre körningar i dag. Ladda batteriet på vägen om det behövs.',
-    timeLimit: 50, reward: 650,
+    title: 'Mjölk och grönsaker',
+    story: 'Två leveranser i var sin ände av stan. Flaket rymmer bara en last i taget.',
+    timeLimit: 105, reward: 750,
     deliveries: [
-      { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
-      { from: 'fisken', to: 'fiskrest', item: 'fish' }
+      { from: 'mejeriet', to: 'cafeet', item: 'milk' },
+      { from: 'odlingen', to: 'pizzerian', item: 'carrot' }
     ],
-    extra: ['laddstationen'],
+    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast']
   },
   {
     title: 'Lunchrusningen',
-    story: 'Tre kök väntar på varor före lunch.',
-    timeLimit: 62, reward: 800,
+    story: 'Tre kök väntar före lunch, spridda över hela stan.',
+    timeLimit: 140, reward: 950,
     deliveries: [
       { from: 'bageriet', to: 'cafeet', item: 'bread' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
-    extra: ['laddstationen'],
+    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast']
   },
   {
     title: 'Långpasset',
     story: 'Ett långt pass. Du har redan kört i dag, så planera in mat och vila.',
-    timeLimit: 90, reward: 950, startEnergy: 65, startFood: 60,
+    timeLimit: 250, reward: 1100, startEnergy: 60, startFood: 55,
     deliveries: [
       { from: 'mejeriet', to: 'cafeet', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
-    extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
+    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
   },
   {
-    title: 'Över bron',
-    story: 'Varorna ligger i lagret på andra sidan bron. Enda vägen dit är över Slussenbron.',
-    timeLimit: 38, reward: 900,
+    title: 'Över broarna',
+    story: 'Lådorna står i lagret på Gamla stan. Enda vägen ut går över broarna.',
+    timeLimit: 115, reward: 1000,
     deliveries: [
       { from: 'lagret', to: 'glassbaren', item: 'crate' },
       { from: 'mejeriet', to: 'cafeet', item: 'milk' }
     ],
-    extra: ['laddstationen', 'matstallet'],
+    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken']
   },
   {
-    title: 'Blommor och bröd',
-    story: 'Fyra stopp, tre olika varor. Tänk ut i vilken ordning du tar dem.',
-    timeLimit: 44, reward: 1100,
+    title: 'Blommor och vin',
+    story: 'Tre leveranser kors och tvärs. Tänk ut i vilken ordning du tar dem.',
+    timeLimit: 235, reward: 1300,
     deliveries: [
       { from: 'odlingen', to: 'blomsteraffaren', item: 'sunflower' },
-      { from: 'bageriet', to: 'cafeet', item: 'bread' },
-      { from: 'fisken', to: 'hotellet', item: 'fish' }
+      { from: 'bryggeriet', to: 'hotellet', item: 'beer' },
+      { from: 'bageriet', to: 'cafeet', item: 'bread' }
     ],
-    extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
+    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
   },
   {
     title: 'Storleveransen',
-    story: 'Lagret ska tömmas. Ett större flak sparar många vändor.',
-    timeLimit: 92, reward: 1300, startEnergy: 65,
+    story: 'Fyra leveranser. Ett större flak sparar många vändor.',
+    timeLimit: 180, reward: 1600, startEnergy: 65,
     deliveries: [
       { from: 'lagret', to: 'skolan', item: 'crate' },
       { from: 'mejeriet', to: 'skolan', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'bageriet', to: 'cafeet', item: 'bread' }
     ],
-    extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
+    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
   },
   {
     title: 'Expressrundan',
-    story: 'Tre leveranser på kort tid. Undvik omvägar.',
-    timeLimit: 88, reward: 1500,
+    story: 'Tre leveranser på kort tid, från öster till söder. Undvik omvägar.',
+    timeLimit: 180, reward: 1800,
     deliveries: [
       { from: 'bageriet', to: 'glassbaren', item: 'cake' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' },
       { from: 'bryggeriet', to: 'hotellet', item: 'beer' }
     ],
-    extra: ['laddstationen', 'matstallet'],
+    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
   },
   {
     title: 'Hela stan',
-    story: 'Sista passet: fem leveranser över hela stan. Ladda, ät och sov i rätt lägen.',
-    timeLimit: 245, reward: 2000, startEnergy: 70, startFood: 60,
+    story: 'Sista passet: fem leveranser i stadens alla delar. Ladda, ät och sov i rätt lägen.',
+    timeLimit: 350, reward: 2400, startEnergy: 70, startFood: 60,
     deliveries: [
       { from: 'mejeriet', to: 'cafeet', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
@@ -419,7 +465,7 @@ const LEVELS = [
       { from: 'bryggeriet', to: 'hotellet', item: 'beer' },
       { from: 'lagret', to: 'skolan', item: 'crate' }
     ],
-    extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
+    extra: ['laddCity', 'laddSoder', 'laddOster', 'laddVast', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
   }
 ];
 
@@ -448,7 +494,7 @@ const BAL = {
   minutesPerSecond: 1.65,
   batteryBase: 100,
   batteryPerUpgrade: 40,
-  batteryDrainPer100px: 1.42,
+  batteryDrainPer100px: 1.0,
   chargeRate: 5,
   energyMax: 100,
   energyDrainDrive: 0.8,
@@ -948,7 +994,7 @@ function showFailModal(reason, icon) {
 
 function showShopModal(returnTo) {
   let html = '<p class="eyebrow">Verkstad &amp; butik</p><h2>' + iconSpan('shop') + 'Butiken</h2>' +
-    '<p class="sub">Kassa: <b style="color:var(--accent)">' + run.money + ' kr</b></p>';
+    '<p class="wallet">' + iconSpan('money') + '<b>' + run.money + ' kr</b> i kassan</p>';
   for (const id in UPGRADES) {
     const u = UPGRADES[id];
     const lv = run.upgrades[id];
@@ -1015,8 +1061,11 @@ function showSettingsModal() {
       '<b>' + (i + 1) + '</b><span>' + lv.title + '</span></button>';
   });
   html += '</div>' +
+    '<p class="versionrow">Delivery Girl <b>v' + VERSION + '</b> · ' +
+    '<button class="linkbtn" id="modalChangelog" type="button">vad som är nytt</button></p>' +
     '<div class="btnrow"><button class="btn primary" id="modalOk">' + iconSpan('check') + '<span class="lbl">Klar</span></button></div>';
   showModal(html);
+  $('#modalChangelog').addEventListener('click', showChangelogModal);
   document.querySelectorAll('.modeopt[data-mode]').forEach(b => {
     b.addEventListener('click', () => { setMode(b.dataset.mode); showSettingsModal(); });
   });
@@ -1110,18 +1159,26 @@ function renderStatus() {
 
 function renderQuestChip() {
   const lvl = currentLevel();
-  $('#qcTitle').textContent = (game.levelIndex + 1) + '. ' + lvl.title;
-  const done = game.deliveries.filter(d => d.state === 'done').length;
-  const total = game.deliveries.length;
-  let time;
+  $('#qcTitle').textContent = lvl.title;
+
+  const timeEl = $('#qcTime');
   if (lvl.timeLimit === null) {
-    time = iconSpan('sun') + '<b>' + Math.floor(game.clock) + '</b> min';
+    timeEl.textContent = Math.floor(game.clock) + ' min';
+    timeEl.classList.remove('warn');
   } else {
     const left = Math.max(0, lvl.timeLimit - game.clock);
-    const warn = left < lvl.timeLimit * 0.25 ? ' warn' : '';
-    time = '<span class="' + warn.trim() + '">' + iconSpan('stopwatch') + '<b>' + Math.ceil(left) + '</b> min</span>';
+    timeEl.textContent = Math.ceil(left) + ' min';
+    timeEl.classList.toggle('warn', left < lvl.timeLimit * 0.25);
   }
-  $('#qcBody').innerHTML = '<span>' + iconSpan('box') + '<b>' + done + '/' + total + '</b></span>' + time;
+
+  const ul = $('#qcList');
+  const sig = game.deliveries.map(d => d.state).join(',');
+  if (ul.dataset.sig !== sig) {
+    ul.dataset.sig = sig;
+    ul.innerHTML = game.deliveries.map(d =>
+      '<li class="' + d.state + '">' + iconSpan(d.state === 'done' ? 'check' : d.item) +
+      '<span>' + LOCATIONS[d.from].name + ' → ' + LOCATIONS[d.to].name + '</span></li>').join('');
+  }
 }
 
 // Kön ritas bara om när den faktiskt ändras. Annars skulle raderna bytas
@@ -1193,10 +1250,8 @@ function renderControls() {
 }
 
 function renderChips() {
-  $('#moneyChip').innerHTML = iconSpan('money') + run.money + ' kr';
-  $('#shopBtn').innerHTML = iconSpan('shop') + 'Butik';
+  $('#shopBtn').innerHTML = iconSpan('shop');
   $('#settingsBtn').innerHTML = iconSpan('cog');
-  $('#versionBtn').textContent = 'v' + VERSION;
 }
 
 function renderAll() {
@@ -1279,15 +1334,7 @@ function fitView() {
 function resetView() {
   viewW = window.innerWidth; viewH = window.innerHeight;
   cam.scale = defaultScale();
-  cam.x = CONTENT.x; cam.y = CONTENT.y;
-  clampCam();
-  // Knuffa vyn precis så mycket att bilen kommer med, hellre än att
-  // centrera på den och kasta bort halva staden i havet.
-  const t = game.truck;
-  const halfW = viewW / (2 * cam.scale), halfH = viewH / (2 * cam.scale);
-  const m = Math.min(130, halfW * 0.4, halfH * 0.4);
-  cam.x = clamp(cam.x, t.x - (halfW - m), t.x + (halfW - m));
-  cam.y = clamp(cam.y, t.y - (halfH - m), t.y + (halfH - m));
+  cam.x = game.truck.x; cam.y = game.truck.y;
   clampCam();
 }
 
@@ -1406,8 +1453,15 @@ function drawGround() {
     }
   }
 
-  for (const poly of LANDS) drawLand(poly);
-  for (const pk of PARKS) drawPark(pk);
+  LANDS.forEach((poly, i) => {
+    const box = LAND_BOX[i];
+    if (box.x1 < v.x0 || box.x0 > v.x1 || box.y1 < v.y0 || box.y0 > v.y1) return;
+    drawLand(poly, box);
+  });
+  for (const pk of PARKS) {
+    if (pk.cx + pk.rx < v.x0 || pk.cx - pk.rx > v.x1 || pk.cy + pk.ry < v.y0 || pk.cy - pk.ry > v.y1) continue;
+    drawPark(pk);
+  }
 }
 
 function tracePolygon(poly) {
@@ -1417,7 +1471,17 @@ function tracePolygon(poly) {
   ctx.closePath();
 }
 
-function drawLand(poly) {
+// Bounding box per stadsdel, så kvartersrutorna bara ritas där de syns
+const LAND_BOX = LANDS.map(poly => {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of poly) {
+    x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]);
+    x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]);
+  }
+  return { x0, y0, x1, y1 };
+});
+
+function drawLand(poly, box) {
   // Strandkant
   ctx.save();
   tracePolygon(poly);
@@ -1430,8 +1494,13 @@ function drawLand(poly) {
   // Kvartersstruktur: svag ljusare ton innanför kanten
   ctx.clip();
   ctx.fillStyle = 'rgba(255,255,255,0.022)';
-  for (let gx = 0; gx < W; gx += 230) {
-    for (let gy = 0; gy < H; gy += 190) {
+  const v = visibleRect();
+  const gx0 = Math.floor(Math.max(box.x0, v.x0) / 230) * 230;
+  const gx1 = Math.min(box.x1, v.x1);
+  const gy0 = Math.floor(Math.max(box.y0, v.y0) / 190) * 190;
+  const gy1 = Math.min(box.y1, v.y1);
+  for (let gx = gx0; gx < gx1; gx += 230) {
+    for (let gy = gy0; gy < gy1; gy += 190) {
       if (((gx / 230 + gy / 190) | 0) % 2 === 0) ctx.fillRect(gx, gy, 230, 190);
     }
   }
@@ -1818,29 +1887,33 @@ function drawLocation(loc) {
   });
 }
 
+// Bilen ritas rejält tilltagen så man alltid ser var hon är
+const truckSize = () => clamp(62 / cam.scale, 84, 210);
+
 function drawTruck() {
   const t = game.truck;
+  const ts = truckSize();
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.ellipse(t.x, t.y + 16, 20, 6, 0, 0, Math.PI * 2);
+  ctx.ellipse(t.x, t.y + ts * 0.33, ts * 0.42, ts * 0.13, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 
   ctx.save();
   ctx.translate(t.x, t.y);
   if (t.facing < 0) ctx.scale(-1, 1);
-  const c = rasterIcon('truck', '#f6b93b', 48);
-  if (c) ctx.drawImage(c, -24, -26, 48, 48);
+  const c = rasterIcon('truck', '#f6b93b', ts);
+  if (c) ctx.drawImage(c, -ts / 2, -ts * 0.54, ts, ts);
   ctx.restore();
 
   const busy = t.state === 'charge' ? 'charge' : t.state === 'eat' ? 'meal' : t.state === 'sleep' ? 'nightSleep' : null;
   const warn = truckWarning();
   const bubble = busy || warn;
   if (bubble) {
-    const bs = clamp(54 / cam.scale, 50, 104);
+    const bs = clamp(58 / cam.scale, 58, 120);
     const col = warn && !busy ? '#c2503f' : '#c98a1e';
-    drawSpeechBubble(t.x, t.y - 30 - bs * 0.5, bubble, col, bs, 0, col);
+    drawSpeechBubble(t.x, t.y - ts * 0.5 - bs * 0.45, bubble, col, bs, 0, col);
   }
 }
 
@@ -1954,7 +2027,6 @@ $('#speedBtn').addEventListener('click', () => {
 $('#clearBtn').addEventListener('click', clearQueue);
 $('#restartBtn').addEventListener('click', () => { toast('Uppdraget börjar om.', 'retry'); setupLevel(); });
 $('#questChip').addEventListener('click', () => showQuestModal(false));
-$('#versionBtn').addEventListener('click', showChangelogModal);
 $('#settingsBtn').addEventListener('click', () => {
   if (game.running) { game.running = false; game.userPaused = true; renderControls(); }
   showSettingsModal();
