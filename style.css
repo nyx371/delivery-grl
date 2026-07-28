@@ -255,11 +255,17 @@ button.chip:hover { border-color: var(--accent); }
 .queue li .qtext { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .queue li .qprog { font-size: 0.68rem; color: var(--muted); flex: none; font-variant-numeric: tabular-nums; }
 .queue li .rm {
-  background: none; border: none; color: var(--muted);
-  cursor: pointer; padding: 0.1rem; display: inline-flex; flex: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: inline-flex;
+  flex: none;
 }
-.queue li .rm:hover { color: var(--red); }
-.queue li .rm .icon { color: inherit; width: 0.95rem; height: 0.95rem; }
+.queue li .rm:hover { color: var(--red); border-color: var(--red); background: rgba(229, 90, 81, 0.12); }
+.queue li .rm .icon { color: inherit; width: 0.85rem; height: 0.85rem; }
 
 /* ---------- Zoom ---------- */
 
@@ -552,7 +558,7 @@ button.chip:hover { border-color: var(--accent); }
   .levelbtn { min-height: 3rem; }
   .queuehead { min-height: 2.75rem; }
   .queue li { padding: 0.5rem 0.5rem; }
-  .queue li .rm { padding: 0.4rem; }
+  .queue li .rm { min-width: 2.6rem; min-height: 2.6rem; justify-content: center; align-items: center; }
   .queue li .rm .icon { width: 1.15rem; height: 1.15rem; }
   .modeopt { padding: 0.85rem 0.8rem; }
   .shopitem .buy { min-height: 2.6rem; padding: 0.55rem 0.8rem; }
@@ -578,7 +584,8 @@ button.chip:hover { border-color: var(--accent); }
   #queuePanel {
     max-height: 32vh;
     bottom: calc(5.2rem + var(--safe-b));
-    width: calc(100vw - 1.2rem - var(--safe-l) - var(--safe-r));
+    /* Lämna plats för zoomknapparna till höger */
+    width: calc(100vw - 4.9rem - var(--safe-l) - var(--safe-r));
   }
   #zoomCluster { bottom: calc(5.2rem + var(--safe-b)); }
 

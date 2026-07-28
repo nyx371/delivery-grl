@@ -9,7 +9,8 @@ Du är Delivery Girl och kör stadens lilla eldrivna lastbil. Hämta varor och k
 - **10 uppdrag** med korta beskrivningar och tidsgränser.
 - **Enkelt bildspråk:** ett hämtställe ritas som en hög med fem varor, en butik som ett hus med en skylt för vad den handlar med, och den som väntar på en leverans har en gungande pratbubbla med symbolen för varan den vill ha.
 - **Bara det som hör till uppdraget syns** på kartan. Fler platser dyker upp allt eftersom uppdragen blir svårare.
-- **Planera i förväg:** köa hur många stopp du vill — kör, ladda, ät, sov. Lägg till och ta bort stopp även medan bilen rullar, så slipper du väntetid mellan uppdragen.
+- **Kön med åtgärder:** köa hur många stopp du vill — kör, ladda, ät, sov. Varje rad i körschemat har ett **X** för att plocka bort just den, och du kan lägga till och ta bort stopp även medan bilen rullar.
+- **Uppdraget är klart** så fort sista leveransen är framme. Bilen börjar dagen på en startplats i stan, men du behöver inte köra tillbaka dit.
 - **Tre resurser:** bilens batteri, din energi och din mat. Ladda på laddstationen, ät på matstället och sov på vandrarhemmet. Börjar något ta slut kryper bilen fram och visar en pratbubbla med vad som fattas. Långpassen börjar med trött förare, så vila måste planeras in.
 - **Pengar & butik:** klarade uppdrag ger pengar som köper uppgraderingar — större batteri, snabbladdning, större flak, kaffetermos och kylbox.
 - **Inget sparas mellan sidladdningar** — varje omladdning är en ny arbetsdag. Vill du hoppa till ett senare pass finns uppdragsväljaren i inställningarna, och du får då med dig lönen för passen du hoppar över.

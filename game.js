@@ -5,9 +5,19 @@
    Vanilla JS + Canvas. Symboler: game-icons.net (CC BY 3.0)
    ============================================================ */
 
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 
 const CHANGELOG = [
+  {
+    version: '1.6.0',
+    date: '2026-07-28',
+    items: [
+      'Startplatsen har inget namn längre — den är bara där bilen står när dagen börjar.',
+      'Uppdraget är slut så fort sista leveransen är framme; ingen återresa krävs.',
+      'Kön med åtgärder är tillbaka i båda spellägena, och varje rad har ett X för att ta bort just den.',
+      'Tidsgränserna är omräknade nu när återresan är borta.'
+    ]
+  },
   {
     version: '1.5.0',
     date: '2026-07-28',
@@ -241,11 +251,12 @@ function shortestPath(fromKey, toKey) {
 
 /* Varje plats är antingen ett ställe man hämtar varor (ritas som en hög
    av fem varor), ett ställe som vill ha leverans (ett hus med skylt), en
-   service, eller depån. Bara de platser uppdraget handlar om visas. */
+   service. Bara de platser uppdraget handlar om visas. Bilen börjar vid
+   en startpunkt i stan som inte är någon plats i sig. */
+
+const START_NODE = 'hornstull';
 
 const LOC_DEFS = {
-  depot:    { node: 'hornstull', name: 'Depån', kind: 'depot', icon: 'truck', color: '#f6b93b' },
-
   // Hämtställen
   bageriet: { node: 'mariatorget', name: 'Bageriet',     kind: 'pickup', item: 'bread',  color: '#e0b978' },
   fisken:   { node: 'kat3',        name: 'Fiskhamnen',   kind: 'pickup', item: 'fish',   color: '#8fd3f4' },
@@ -271,7 +282,7 @@ const LOC_DEFS = {
 
 // Vart husen ställs i förhållande till korsningen de ligger vid
 const LOC_OFFSETS = {
-  depot: [-60, -90], bageriet: [-105, -72], fisken: [20, -100], odlingen: [-20, 100],
+  bageriet: [-105, -72], fisken: [20, -100], odlingen: [-20, 100],
   mejeriet: [10, -105], lagret: [-100, -70], bryggeriet: [95, 70],
   cafeet: [-105, 80], fiskrest: [96, 78], pizzerian: [30, -100], glassbaren: [-30, 100],
   blomsteraffaren: [-100, 60], hotellet: [-40, -100], skolan: [-40, 100],
@@ -308,83 +319,76 @@ const SERVICE_TEXT = {
 const LEVELS = [
   {
     title: 'Bröd till caféet',
-    story: 'Hämta bröd i bageriet och kör det till caféet. Åk sedan hem till depån.',
+    story: 'Hämta bröd i bageriet och kör det till caféet.',
     timeLimit: null, reward: 450,
     deliveries: [{ from: 'bageriet', to: 'cafeet', item: 'bread' }],
-    returnHome: true
   },
   {
     title: 'Bröd och fisk',
     story: 'Två leveranser. Flaket rymmer bara en last i taget, så det blir två vändor.',
-    timeLimit: 55, reward: 550,
+    timeLimit: 38, reward: 550,
     deliveries: [
       { from: 'bageriet', to: 'cafeet', item: 'bread' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
-    returnHome: true
   },
   {
     title: 'Grönsaker till pizzerian',
     story: 'Längre körningar i dag. Ladda batteriet på vägen om det behövs.',
-    timeLimit: 75, reward: 650,
+    timeLimit: 50, reward: 650,
     deliveries: [
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
     extra: ['laddstationen'],
-    returnHome: true
   },
   {
     title: 'Lunchrusningen',
     story: 'Tre kök väntar på varor före lunch.',
-    timeLimit: 105, reward: 800,
+    timeLimit: 62, reward: 800,
     deliveries: [
       { from: 'bageriet', to: 'cafeet', item: 'bread' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
     extra: ['laddstationen'],
-    returnHome: true
   },
   {
     title: 'Långpasset',
     story: 'Ett långt pass. Du har redan kört i dag, så planera in mat och vila.',
-    timeLimit: 100, reward: 950, startEnergy: 65, startFood: 60,
+    timeLimit: 90, reward: 950, startEnergy: 65, startFood: 60,
     deliveries: [
       { from: 'mejeriet', to: 'cafeet', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
     extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
-    returnHome: true
   },
   {
     title: 'Över bron',
     story: 'Varorna ligger i lagret på andra sidan bron. Enda vägen dit är över Slussenbron.',
-    timeLimit: 48, reward: 900,
+    timeLimit: 38, reward: 900,
     deliveries: [
       { from: 'lagret', to: 'glassbaren', item: 'crate' },
       { from: 'mejeriet', to: 'cafeet', item: 'milk' }
     ],
     extra: ['laddstationen', 'matstallet'],
-    returnHome: true
   },
   {
     title: 'Blommor och bröd',
     story: 'Fyra stopp, tre olika varor. Tänk ut i vilken ordning du tar dem.',
-    timeLimit: 58, reward: 1100,
+    timeLimit: 44, reward: 1100,
     deliveries: [
       { from: 'odlingen', to: 'blomsteraffaren', item: 'sunflower' },
       { from: 'bageriet', to: 'cafeet', item: 'bread' },
       { from: 'fisken', to: 'hotellet', item: 'fish' }
     ],
     extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
-    returnHome: true
   },
   {
     title: 'Storleveransen',
     story: 'Lagret ska tömmas. Ett större flak sparar många vändor.',
-    timeLimit: 135, reward: 1300, startEnergy: 65,
+    timeLimit: 92, reward: 1300, startEnergy: 65,
     deliveries: [
       { from: 'lagret', to: 'skolan', item: 'crate' },
       { from: 'mejeriet', to: 'skolan', item: 'milk' },
@@ -392,24 +396,22 @@ const LEVELS = [
       { from: 'bageriet', to: 'cafeet', item: 'bread' }
     ],
     extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
-    returnHome: true
   },
   {
     title: 'Expressrundan',
     story: 'Tre leveranser på kort tid. Undvik omvägar.',
-    timeLimit: 100, reward: 1500,
+    timeLimit: 88, reward: 1500,
     deliveries: [
       { from: 'bageriet', to: 'glassbaren', item: 'cake' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' },
       { from: 'bryggeriet', to: 'hotellet', item: 'beer' }
     ],
     extra: ['laddstationen', 'matstallet'],
-    returnHome: true
   },
   {
     title: 'Hela stan',
     story: 'Sista passet: fem leveranser över hela stan. Ladda, ät och sov i rätt lägen.',
-    timeLimit: 250, reward: 2000, startEnergy: 70, startFood: 60,
+    timeLimit: 245, reward: 2000, startEnergy: 70, startFood: 60,
     deliveries: [
       { from: 'mejeriet', to: 'cafeet', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
@@ -418,13 +420,12 @@ const LEVELS = [
       { from: 'lagret', to: 'skolan', item: 'crate' }
     ],
     extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
-    returnHome: true
   }
 ];
 
 // Vilka platser som ska ritas ut under ett visst uppdrag
 function levelPlaces(lvl) {
-  const set = new Set(['depot']);
+  const set = new Set();
   for (const d of lvl.deliveries) { set.add(d.from); set.add(d.to); }
   for (const e of lvl.extra || []) set.add(e);
   return set;
@@ -483,12 +484,12 @@ const game = {
   queue: [],
   deliveries: [],
   route: [],
-  places: new Set(['depot']),
+  places: new Set(),
   over: false,
   userPaused: false,
   truck: {
-    x: LOCATIONS.depot.x, y: LOCATIONS.depot.y,
-    atNode: nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y),
+    x: NODES[START_NODE][0], y: NODES[START_NODE][1],
+    atNode: nodeKey(NODES[START_NODE][0], NODES[START_NODE][1]),
     path: [], pathIndex: 0, facing: 1,
     state: 'idle',
     battery: 100, energy: 100, food: 100
@@ -656,7 +657,14 @@ function arriveAt(locId) {
   checkLevelComplete();
 }
 
+// Vilken plats som ligger vid en viss korsning, om någon
+function placeAtNode(key) {
+  for (const id of game.places) if (nodeKey(LOCATIONS[id].x, LOCATIONS[id].y) === key) return id;
+  return null;
+}
+
 function tryPickupAt(locId) {
+  if (!locId) return;
   for (const d of game.deliveries) {
     if (d.state === 'waiting' && d.from === locId) {
       if (carriedCount() < cargoMax()) {
@@ -764,9 +772,6 @@ function finishService(msg, icon) {
 function checkLevelComplete() {
   if (game.over || !game.running) return;
   if (!game.deliveries.every(d => d.state === 'done')) return;
-  if (currentLevel().returnHome) {
-    if (game.truck.atNode !== nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y) || game.truck.state === 'driving') return;
-  }
   completeLevel();
 }
 
@@ -780,11 +785,12 @@ function setupLevel() {
   game.queue = [];
   game.route = [];
   game.userPaused = false;
+  queueSig = null;
   game.places = levelPlaces(lvl);
   game.deliveries = lvl.deliveries.map(d => Object.assign({}, d, { state: 'waiting' }));
   const t = game.truck;
-  t.x = LOCATIONS.depot.x; t.y = LOCATIONS.depot.y;
-  t.atNode = nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y);
+  t.x = NODES[START_NODE][0]; t.y = NODES[START_NODE][1];
+  t.atNode = nodeKey(NODES[START_NODE][0], NODES[START_NODE][1]);
   t.path = []; t.pathIndex = 0; t.facing = 1;
   t.state = 'idle';
   t.battery = batteryMax();
@@ -799,7 +805,7 @@ function startLevel() {
   if (game.running || game.over) return;
   game.running = true;
   game.userPaused = false;
-  tryPickupAt('depot');
+  tryPickupAt(placeAtNode(game.truck.atNode));
   renderAll();
 }
 
@@ -836,7 +842,6 @@ function hideModal() { $('#modalBackdrop').classList.add('hidden'); }
 const modalOpen = () => !$('#modalBackdrop').classList.contains('hidden');
 
 function objectiveList() {
-  const lvl = currentLevel();
   let html = '<ul class="objectives">';
   for (const d of game.deliveries) {
     const cls = d.state === 'done' ? 'done' : d.state === 'carried' ? 'carried' : 'pending';
@@ -846,12 +851,6 @@ function objectiveList() {
                 : d.state === 'done' ? 'levererat till ' + to.name
                 : from.name + ' → ' + to.name;
     html += '<li class="' + cls + '">' + iconSpan(ic) + '<span class="obj-text"><b>' + itemName(d.item) + '</b> — ' + where + '</span></li>';
-  }
-  if (lvl.returnHome) {
-    const allDone = game.deliveries.every(d => d.state === 'done');
-    const home = allDone && game.truck.atNode === nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y) && game.truck.state !== 'driving';
-    html += '<li class="' + (home ? 'done' : allDone ? 'carried' : 'pending') + '">' + iconSpan(home ? 'check' : 'house') +
-      '<span class="obj-text">Kör tillbaka till depån</span></li>';
   }
   return html + '</ul>';
 }
@@ -1053,9 +1052,9 @@ function setMode(mode) {
     startLevel();
   }
   toast(mode === 'planning' ? 'Planeringsläge.' : 'Direktkörning.', mode === 'planning' ? 'checklist' : 'click');
+  queueSig = null;
   renderQueue();
   renderControls();
-  applyModeLayout();
 }
 
 function showChangelogModal() {
@@ -1125,7 +1124,21 @@ function renderQuestChip() {
   $('#qcBody').innerHTML = '<span>' + iconSpan('box') + '<b>' + done + '/' + total + '</b></span>' + time;
 }
 
+// Kön ritas bara om när den faktiskt ändras. Annars skulle raderna bytas
+// ut åtta gånger i sekunden medan bilen kör, och ett tryck på X kunna
+// hamna på ett element som just försvann.
+let queueSig = null;
+
+function queueSignature() {
+  return game.queue.map(q => q.locId + (q.service || '')).join('>') +
+    '|' + (game.running ? 1 : 0) + '|' + game.truck.state;
+}
+
 function renderQueue() {
+  const sig = queueSignature();
+  if (sig === queueSig) { updateQueueProgress(); return; }
+  queueSig = sig;
+
   const ol = $('#queueList');
   ol.innerHTML = '';
   $('#queueHint').style.display = game.queue.length ? 'none' : '';
@@ -1133,29 +1146,38 @@ function renderQueue() {
     ? 'Tryck på en plats på kartan så rullar bilen dit direkt. Lägg till fler stopp medan hon kör.'
     : 'Tryck på platser på kartan för att bygga hela körschemat, tryck sedan på Kör.';
   $('#queueCount').textContent = game.queue.length;
+
   game.queue.forEach((item, i) => {
     const loc = LOCATIONS[item.locId];
     const active = i === 0 && game.running && game.truck.state !== 'idle';
     const li = el('li', active ? 'active' : '');
     let text = loc.name;
     if (item.service) text += ' · ' + SERVICE_TEXT[item.service].queued;
-    let prog = '';
-    if (active) {
-      const t = game.truck;
-      if (t.state === 'charge') prog = Math.round((t.battery / batteryMax()) * 100) + ' %';
-      else if (t.state === 'eat') prog = Math.round(t.food) + ' %';
-      else if (t.state === 'sleep') prog = Math.round(t.energy) + ' %';
-      else if (t.state === 'driving') prog = 'kör…';
-    }
     li.innerHTML = '<span class="num">' + (i + 1) + '</span>' +
       iconSpan(item.service ? SERVICE_TEXT[item.service].icon : 'marker') +
       '<span class="qtext">' + text + '</span>' +
-      (prog ? '<span class="qprog">' + prog + '</span>' : '') +
-      '<button class="rm" aria-label="Ta bort">' + iconSpan('trash') + '</button>';
+      '<span class="qprog"></span>' +
+      '<button class="rm" aria-label="Ta bort ' + text + '" title="Ta bort">' + iconSpan('x') + '</button>';
     li.querySelector('.rm').addEventListener('click', ev => { ev.stopPropagation(); removeQueueItem(i); });
     ol.appendChild(li);
   });
+  updateQueueProgress();
   renderControls();
+}
+
+// Bara framstegstexten på den rad som pågår behöver uppdateras löpande
+function updateQueueProgress() {
+  const cell = $('#queueList li .qprog');
+  if (!cell) return;
+  const t = game.truck;
+  let prog = '';
+  if (game.running && t.state !== 'idle') {
+    if (t.state === 'charge') prog = Math.round((t.battery / batteryMax()) * 100) + ' %';
+    else if (t.state === 'eat') prog = Math.round(t.food) + ' %';
+    else if (t.state === 'sleep') prog = Math.round(t.energy) + ' %';
+    else if (t.state === 'driving') prog = 'kör…';
+  }
+  if (cell.textContent !== prog) cell.textContent = prog;
 }
 
 function renderControls() {
@@ -1177,14 +1199,7 @@ function renderChips() {
   $('#versionBtn').textContent = 'v' + VERSION;
 }
 
-// I direktläge styr man direkt på kartan — då är körschemat bara i vägen.
-// De köade stoppen syns ändå som numrerade brickor på kartan.
-function applyModeLayout() {
-  $('#queuePanel').style.display = isRealtime() ? 'none' : '';
-}
-
 function renderAll() {
-  applyModeLayout();
   renderChips();
   renderQuestChip();
   renderStatus();
