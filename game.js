@@ -5,9 +5,21 @@
    Vanilla JS + Canvas. Symboler: game-icons.net (CC BY 3.0)
    ============================================================ */
 
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 
 const CHANGELOG = [
+  {
+    version: '1.5.0',
+    date: '2026-07-28',
+    items: [
+      'Enklare uppdrag: kort beskrivning, inga personnamn, och platser som helt enkelt heter Bageriet, Caféet och Fiskrestaurangen.',
+      'Bara de platser uppdraget handlar om visas på kartan — fler dyker upp allt eftersom uppdragen blir svårare.',
+      'Hämtställen ritas som en hög med fem varor, så man ser direkt vad som finns att hämta.',
+      'Butiker är hus med en skylt som visar vad de handlar med.',
+      'Den som väntar på en leverans har en gungande pratbubbla med symbolen för varan den vill ha.',
+      'Bilen kryper fram när batteriet eller föraren börjar ta slut, och visar en pratbubbla med vad som fattas.'
+    ]
+  },
   {
     version: '1.4.0',
     date: '2026-07-28',
@@ -227,32 +239,60 @@ function shortestPath(fromKey, toKey) {
 
 /* ---------- Personer & platser ---------- */
 
+/* Varje plats är antingen ett ställe man hämtar varor (ritas som en hög
+   av fem varor), ett ställe som vill ha leverans (ett hus med skylt), en
+   service, eller depån. Bara de platser uppdraget handlar om visas. */
+
 const LOC_DEFS = {
-  depot:    { node: 'hornstull', name: 'Depån', who: 'Mormor Greta', icon: 'house', color: '#f6b93b',
-              ox: -60, oy: -90, blurb: 'Ditt garage vid Hornstull. Greta packar lådorna och har alltid kaffe på.' },
-  grossist: { node: 'gamlastan', name: 'Grossisten', who: 'Gustav', icon: 'crate', color: '#c9a066',
-              ox: -95, oy: -70, blurb: 'Ligger på fastlandet — enda vägen dit är över Slussenbron.' },
-  rosen:    { node: 'mariatorget', name: 'Café Rosen', who: 'Rosa', icon: 'chef', color: '#f28fb1',
-              ox: -105, oy: -72, blurb: 'Vid Mariatorget. Rosa bakar kanelbullar som tar slut på tjugo minuter.' },
-  masen:    { node: 'kat3', name: 'Restaurang Måsen', who: 'Majken', icon: 'cook', color: '#8fd3f4',
-              ox: 20, oy: -95, blurb: 'Skaldjur nere vid kajen. Katten Sill sitter i fönstret och väntar på dig.' },
-  eken:     { node: 'skane1', name: 'Trattoria Eken', who: 'Enzo', icon: 'chef', color: '#a3d977',
-              ox: 96, oy: 78, blurb: 'Vid Nytorget. Enzo sjunger opera medan han knådar pizzadeg.' },
-  laddNord: { node: 'medis', name: 'Laddstation Medis', who: null, icon: 'gasPump', color: '#57c26b',
-              ox: -105, oy: 78, service: 'charge', blurb: 'Snabbladdare vid Medborgarplatsen.' },
-  laddSyd:  { node: 'ring3', name: 'Laddstation Ringen', who: null, icon: 'gasPump', color: '#57c26b',
-              ox: -20, oy: 98, service: 'charge', blurb: 'Laddaren vid Ringvägen. Alltid en ledig plats.' },
-  krog:     { node: 'horns3', name: 'Vägkrogen', who: 'Bengt', icon: 'burger', color: '#f0913d',
-              ox: -20, oy: -98, service: 'eat', blurb: 'Bengt håller en tallrik köttbullar varm åt dig. Varje dag.' },
-  motell:   { node: 'arsta', name: 'Motell Vilan', who: 'Vera', icon: 'bed', color: '#b18ae0',
-              ox: 105, oy: 40, service: 'sleep', blurb: 'Över Skanstullsbron i Årsta. Vera bäddar rent och fyller termosen.' }
+  depot:    { node: 'hornstull', name: 'Depån', kind: 'depot', icon: 'truck', color: '#f6b93b' },
+
+  // Hämtställen
+  bageriet: { node: 'mariatorget', name: 'Bageriet',     kind: 'pickup', item: 'bread',  color: '#e0b978' },
+  fisken:   { node: 'kat3',        name: 'Fiskhamnen',   kind: 'pickup', item: 'fish',   color: '#8fd3f4' },
+  odlingen: { node: 'ring3',       name: 'Odlingen',     kind: 'pickup', item: 'carrot', color: '#e08a4a' },
+  mejeriet: { node: 'bergs3',      name: 'Mejeriet',     kind: 'pickup', item: 'milk',   color: '#dfe6ee' },
+  lagret:   { node: 'gamlastan',   name: 'Lagret',       kind: 'pickup', item: 'crate',  color: '#c9a066' },
+  bryggeriet:{ node: 'ring7',      name: 'Bryggeriet',   kind: 'pickup', item: 'beer',   color: '#c98a3a' },
+
+  // Ställen som vill ha leverans
+  cafeet:   { node: 'medis',       name: 'Caféet',           kind: 'shop', icon: 'coffee',   color: '#d9a066' },
+  fiskrest: { node: 'skane1',      name: 'Fiskrestaurangen', kind: 'shop', icon: 'fish',     color: '#7fc4e8' },
+  pizzerian:{ node: 'folk2',       name: 'Pizzerian',        kind: 'shop', icon: 'pizza',    color: '#e2705a' },
+  glassbaren:{ node: 'ring5',      name: 'Glassbaren',       kind: 'shop', icon: 'icecream', color: '#f5b8d0' },
+  blomsteraffaren:{ node: 'sweden1',name: 'Blomsteraffären',  kind: 'shop', icon: 'sunflower',color: '#e8c84a' },
+  hotellet: { node: 'kat1',        name: 'Hotellet',         kind: 'shop', icon: 'wine',     color: '#b18ae0' },
+  skolan:   { node: 'bonde1',       name: 'Skolan',           kind: 'shop', icon: 'apple',    color: '#a3d977' },
+
+  // Service
+  laddstationen: { node: 'gotg4', name: 'Laddstationen', kind: 'service', icon: 'gasPump', color: '#57c26b', service: 'charge' },
+  matstallet:    { node: 'horns3', name: 'Matstället',   kind: 'service', icon: 'burger',  color: '#f0913d', service: 'eat' },
+  vandrarhemmet: { node: 'arsta',  name: 'Vandrarhemmet',kind: 'service', icon: 'bed',     color: '#b18ae0', service: 'sleep' }
+};
+
+// Vart husen ställs i förhållande till korsningen de ligger vid
+const LOC_OFFSETS = {
+  depot: [-60, -90], bageriet: [-105, -72], fisken: [20, -100], odlingen: [-20, 100],
+  mejeriet: [10, -105], lagret: [-100, -70], bryggeriet: [95, 70],
+  cafeet: [-105, 80], fiskrest: [96, 78], pizzerian: [30, -100], glassbaren: [-30, 100],
+  blomsteraffaren: [-100, 60], hotellet: [-40, -100], skolan: [-40, 100],
+  laddstationen: [100, -60], matstallet: [-20, -98], vandrarhemmet: [105, 40]
 };
 
 const LOCATIONS = {};
 for (const id in LOC_DEFS) {
   const d = LOC_DEFS[id];
-  LOCATIONS[id] = Object.assign({ id, x: NODES[d.node][0], y: NODES[d.node][1] }, d);
+  const off = LOC_OFFSETS[id] || [0, -90];
+  LOCATIONS[id] = Object.assign({ id, x: NODES[d.node][0], y: NODES[d.node][1], ox: off[0], oy: off[1] }, d);
+  // Hämtställen visar sin vara, butiker sin skylt
+  if (!LOCATIONS[id].icon) LOCATIONS[id].icon = LOCATIONS[id].item;
 }
+
+const ITEM_NAMES = {
+  bread: 'Bröd', fish: 'Fisk', carrot: 'Grönsaker', milk: 'Mjölk', crate: 'Lådor',
+  beer: 'Dryck', sunflower: 'Blommor', cake: 'Tårta', coffee: 'Kaffe', wine: 'Vin',
+  cheese: 'Ost', meat: 'Kött', icecream: 'Glass', apple: 'Frukt', box: 'Paket'
+};
+const itemName = it => ITEM_NAMES[it] || 'Varor';
 
 const SERVICE_TEXT = {
   charge: { doing: 'Laddar batteriet', queued: 'ladda batteriet', icon: 'charge' },
@@ -262,114 +302,133 @@ const SERVICE_TEXT = {
 
 /* ---------- Nivåer ---------- */
 
+/* Varje uppdrag listar sina leveranser (hämtställe → butik) och vilka
+   extra platser som ska synas. Bara dessa platser ritas ut på kartan. */
+
 const LEVELS = [
   {
-    title: 'Första körningen',
-    story: 'Det är din första dag med den lilla eldrivna lastbilen. Mormor Greta har packat en låda nybakade kanelbullar och knutit ett snöre runt den. "Rosa har öppning i dag och är nervös som en fågelunge. Ta med de här, så ordnar sig resten." Kör dit, lämna lådan och kom hem till kaffet.',
+    title: 'Bröd till caféet',
+    story: 'Hämta bröd i bageriet och kör det till caféet. Åk sedan hem till depån.',
     timeLimit: null, reward: 450,
-    deliveries: [{ from: 'depot', to: 'rosen', label: 'Kanelbullar', icon: 'cupcake' }],
+    deliveries: [{ from: 'bageriet', to: 'cafeet', item: 'bread' }],
     returnHome: true
   },
   {
-    title: 'Två beställningar',
-    story: 'Rosa ringde och skrattade rakt in i luren — bullarna tog slut på tjugo minuter. Nu vill hon ha grönsaker. Och Enzo på Eken har glömt beställa bröd till kvällens pizzakväll igen. Två lådor, ett flak: det blir två vändor, om du inte hunnit köpa ett större.',
-    timeLimit: 45, reward: 550,
+    title: 'Bröd och fisk',
+    story: 'Två leveranser. Flaket rymmer bara en last i taget, så det blir två vändor.',
+    timeLimit: 55, reward: 550,
     deliveries: [
-      { from: 'depot', to: 'rosen', label: 'Grönsaker', icon: 'flowers' },
-      { from: 'depot', to: 'eken', label: 'Färskt bröd', icon: 'bread' }
+      { from: 'bageriet', to: 'cafeet', item: 'bread' },
+      { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
     returnHome: true
   },
   {
-    title: 'Grossistens varor',
-    story: 'Gustav står i porten och vinkar med en fisklåda över huvudet. "Till Majken vid vattnet! Och kryddorna till Rosa — glöm inte kryddorna, hon blir ledsen annars." Det är en bit att köra, så håll ett öga på batteriet.',
-    timeLimit: 52, reward: 650,
+    title: 'Grönsaker till pizzerian',
+    story: 'Längre körningar i dag. Ladda batteriet på vägen om det behövs.',
+    timeLimit: 75, reward: 650,
     deliveries: [
-      { from: 'grossist', to: 'masen', label: 'Fiskleverans', icon: 'fish' },
-      { from: 'grossist', to: 'rosen', label: 'Kryddor', icon: 'flowerPot' }
+      { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
+      { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
+    extra: ['laddstationen'],
     returnHome: true
   },
   {
     title: 'Lunchrusningen',
-    story: 'Kvart i elva och tre kök väntar. Rosa har pastavattnet kokande, Enzo skriker opera över salladsskålen och Majken har lovat räkor till ett dopfölje som redan sitter vid borden. Ingen press alls.',
-    timeLimit: 110, reward: 800,
+    story: 'Tre kök väntar på varor före lunch.',
+    timeLimit: 105, reward: 800,
     deliveries: [
-      { from: 'depot', to: 'rosen', label: 'Pastalådor', icon: 'box' },
-      { from: 'depot', to: 'eken', label: 'Sallad', icon: 'flowers' },
-      { from: 'depot', to: 'masen', label: 'Räkor', icon: 'fish' }
+      { from: 'bageriet', to: 'cafeet', item: 'bread' },
+      { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
+      { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
+    extra: ['laddstationen'],
     returnHome: true
   },
   {
     title: 'Långpasset',
-    story: 'Ett långt pass med varor från Gustav till hela stan. Bengt på Vägkrogen har lovat hålla en tallrik köttbullar varm åt dig, och Vera på Motell Vilan bäddar alltid rent. Ta hand om dig själv också — du hjälper ingen om du somnar vid ratten.',
+    story: 'Ett långt pass. Du har redan kört i dag, så planera in mat och vila.',
     timeLimit: 100, reward: 950, startEnergy: 65, startFood: 60,
     deliveries: [
-      { from: 'grossist', to: 'rosen', label: 'Mjöl', icon: 'bread' },
-      { from: 'grossist', to: 'eken', label: 'Ost', icon: 'box' },
-      { from: 'grossist', to: 'masen', label: 'Oliver', icon: 'flowerPot' }
+      { from: 'mejeriet', to: 'cafeet', item: 'milk' },
+      { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
+      { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
+    extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
     returnHome: true
   },
   {
-    title: 'Dubbelbokat',
-    story: 'Två brådskande körningar samtidigt. Majken ska ha catering till hamnfesten och Enzo har fått slut på dricka mitt i fredagsrusningen. Sill sitter redan i fönstret på Måsen och spanar efter din lastbil.',
-    timeLimit: 60, reward: 900,
+    title: 'Över bron',
+    story: 'Varorna ligger i lagret på andra sidan bron. Enda vägen dit är över Slussenbron.',
+    timeLimit: 48, reward: 900,
     deliveries: [
-      { from: 'depot', to: 'masen', label: 'Cateringlåda', icon: 'box' },
-      { from: 'grossist', to: 'eken', label: 'Drycker', icon: 'wine' }
+      { from: 'lagret', to: 'glassbaren', item: 'crate' },
+      { from: 'mejeriet', to: 'cafeet', item: 'milk' }
     ],
+    extra: ['laddstationen', 'matstallet'],
     returnHome: true
   },
   {
-    title: 'Fullt schema',
-    story: 'Porslin, kött och grönsaker. Rosa har fått en ny servis som står och väntar i Depån, och Enzo viskar att han provlagar något nytt i kväll. Han vill inte säga vad, bara att du måste komma och smaka.',
-    timeLimit: 97, reward: 1100,
+    title: 'Blommor och bröd',
+    story: 'Fyra stopp, tre olika varor. Tänk ut i vilken ordning du tar dem.',
+    timeLimit: 58, reward: 1100,
     deliveries: [
-      { from: 'depot', to: 'rosen', label: 'Porslin', icon: 'box' },
-      { from: 'depot', to: 'eken', label: 'Kött', icon: 'pizza' },
-      { from: 'grossist', to: 'masen', label: 'Grönsaker', icon: 'flowers' }
+      { from: 'odlingen', to: 'blomsteraffaren', item: 'sunflower' },
+      { from: 'bageriet', to: 'cafeet', item: 'bread' },
+      { from: 'fisken', to: 'hotellet', item: 'fish' }
     ],
+    extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
     returnHome: true
   },
   {
     title: 'Storleveransen',
-    story: 'Gustav tömmer lagret inför inventeringen och har staplat lådor ända ut på gården. "Ta allt du orkar, tjejen — och kom tillbaka efter mer!" Fyra leveranser, och ett flak som kanske är för litet.',
-    timeLimit: 145, reward: 1300, startEnergy: 65,
+    story: 'Lagret ska tömmas. Ett större flak sparar många vändor.',
+    timeLimit: 135, reward: 1300, startEnergy: 65,
     deliveries: [
-      { from: 'grossist', to: 'rosen', label: 'Konserver', icon: 'fish' },
-      { from: 'grossist', to: 'masen', label: 'Frukt', icon: 'flowers' },
-      { from: 'grossist', to: 'eken', label: 'Kaffe', icon: 'coffee' },
-      { from: 'depot', to: 'masen', label: 'Servetter', icon: 'box' }
+      { from: 'lagret', to: 'skolan', item: 'crate' },
+      { from: 'mejeriet', to: 'skolan', item: 'milk' },
+      { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
+      { from: 'bageriet', to: 'cafeet', item: 'bread' }
     ],
+    extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
     returnHome: true
   },
   {
     title: 'Expressrundan',
-    story: 'Det är Sills födelsedag — ja, katten — och Majken har beställt skaldjur till kalaset. Rosa har en tårta som måste fram innan den smälter, och Enzo väntar på glassen. Spring, Delivery Girl. Spring.',
-    timeLimit: 92, reward: 1500,
+    story: 'Tre leveranser på kort tid. Undvik omvägar.',
+    timeLimit: 100, reward: 1500,
     deliveries: [
-      { from: 'depot', to: 'rosen', label: 'Tårtor', icon: 'cupcake' },
-      { from: 'grossist', to: 'masen', label: 'Skaldjur', icon: 'fish' },
-      { from: 'depot', to: 'eken', label: 'Glass', icon: 'cupcake' }
+      { from: 'bageriet', to: 'glassbaren', item: 'cake' },
+      { from: 'fisken', to: 'fiskrest', item: 'fish' },
+      { from: 'bryggeriet', to: 'hotellet', item: 'beer' }
     ],
+    extra: ['laddstationen', 'matstallet'],
     returnHome: true
   },
   {
-    title: 'Maratonrundan',
-    story: 'Stadens sommarfest. Alla behöver allt, samtidigt, och alla ler mot dig när du svänger in på gården. Greta har hängt upp en flagga på Depån. Sista rundan innan lyktorna tänds på torget — kör den fint.',
-    timeLimit: 200, reward: 2000, startEnergy: 70, startFood: 60,
+    title: 'Hela stan',
+    story: 'Sista passet: fem leveranser över hela stan. Ladda, ät och sov i rätt lägen.',
+    timeLimit: 250, reward: 2000, startEnergy: 70, startFood: 60,
     deliveries: [
-      { from: 'grossist', to: 'rosen', label: 'Mjölk', icon: 'box' },
-      { from: 'grossist', to: 'eken', label: 'Ägg', icon: 'box' },
-      { from: 'depot', to: 'masen', label: 'Blommor', icon: 'sunflower' },
-      { from: 'depot', to: 'rosen', label: 'Vin', icon: 'wine' },
-      { from: 'grossist', to: 'masen', label: 'Choklad', icon: 'cupcake' }
+      { from: 'mejeriet', to: 'cafeet', item: 'milk' },
+      { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
+      { from: 'fisken', to: 'fiskrest', item: 'fish' },
+      { from: 'bryggeriet', to: 'hotellet', item: 'beer' },
+      { from: 'lagret', to: 'skolan', item: 'crate' }
     ],
+    extra: ['laddstationen', 'matstallet', 'vandrarhemmet'],
     returnHome: true
   }
 ];
+
+// Vilka platser som ska ritas ut under ett visst uppdrag
+function levelPlaces(lvl) {
+  const set = new Set(['depot']);
+  for (const d of lvl.deliveries) { set.add(d.from); set.add(d.to); }
+  for (const e of lvl.extra || []) set.add(e);
+  return set;
+}
 
 /* ---------- Uppgraderingar ---------- */
 
@@ -424,6 +483,7 @@ const game = {
   queue: [],
   deliveries: [],
   route: [],
+  places: new Set(['depot']),
   over: false,
   userPaused: false,
   truck: {
@@ -573,7 +633,7 @@ function arriveAt(locId) {
   for (const d of game.deliveries) {
     if (d.state === 'carried' && d.to === locId) {
       d.state = 'done';
-      toast(d.label + ' framme hos ' + (loc.who || loc.name) + '!', 'check');
+      toast(itemName(d.item) + ' levererat till ' + loc.name + '!', 'check');
     }
   }
   tryPickupAt(locId);
@@ -601,12 +661,34 @@ function tryPickupAt(locId) {
     if (d.state === 'waiting' && d.from === locId) {
       if (carriedCount() < cargoMax()) {
         d.state = 'carried';
-        toast(d.label + ' lastat (' + carriedCount() + '/' + cargoMax() + ').', d.icon || 'box');
+        toast(itemName(d.item) + ' lastat (' + carriedCount() + '/' + cargoMax() + ').', d.item);
       } else {
-        toast('Flaket är fullt — ' + d.label + ' fick vänta.', 'cancel');
+        toast('Flaket är fullt — ' + itemName(d.item) + ' fick vänta.', 'cancel');
       }
     }
   }
+}
+
+// Med lite ström i batteriet eller trött förare kryper bilen fram
+function powerFactor() {
+  const t = game.truck;
+  const b = t.battery / batteryMax(), e = t.energy / BAL.energyMax;
+  let f = 1;
+  if (b < 0.25) f = Math.min(f, 0.5 + (b / 0.25) * 0.5);
+  if (e < 0.25) f = Math.min(f, 0.6 + (e / 0.25) * 0.4);
+  return Math.max(0.5, f);
+}
+
+// Vilken varning bilen ska visa i sin pratbubbla, om någon
+function truckWarning() {
+  const t = game.truck;
+  if (t.state !== 'driving') return null;
+  const b = t.battery / batteryMax(), e = t.energy / BAL.energyMax, f = t.food / BAL.foodMax;
+  const worst = Math.min(b, e, f);
+  if (worst >= 0.25) return null;
+  if (worst === b) return 'charge';
+  if (worst === e) return 'coffee';
+  return 'meal';
 }
 
 function tick(dtReal) {
@@ -623,7 +705,7 @@ function tick(dtReal) {
   }
 
   if (t.state === 'driving') {
-    let travel = BAL.truckSpeed * dtReal * game.speed;
+    let travel = BAL.truckSpeed * dtReal * game.speed * powerFactor();
     while (travel > 0 && t.pathIndex < t.path.length - 1) {
       const next = t.path[t.pathIndex + 1];
       const dx = next.x - t.x, dy = next.y - t.y;
@@ -644,7 +726,7 @@ function tick(dtReal) {
       if (item && t.atNode === nodeKey(LOCATIONS[item.locId].x, LOCATIONS[item.locId].y)) arriveAt(item.locId);
       else { t.state = 'idle'; rebuildRoute(); }
     }
-    if (t.battery <= 0) { t.battery = 0; return failLevel('Batteriet tog slut mitt på vägen. Gustav fick komma med bärgaren och Greta blev orolig.', 'batteryPack'); }
+    if (t.battery <= 0) { t.battery = 0; return failLevel('Batteriet tog slut mitt på vägen. Ladda innan mätaren når botten.', 'batteryPack'); }
   }
 
   if (t.state === 'charge') {
@@ -652,18 +734,18 @@ function tick(dtReal) {
     if (t.battery >= batteryMax() - 0.01) finishService('Batteriet fulladdat!', 'charge');
   } else if (t.state === 'eat') {
     t.food = Math.min(BAL.foodMax, t.food + BAL.eatRate * dtMin);
-    if (t.food >= BAL.foodMax - 0.01) finishService('Mätt och belåten. Bengt vinkar av dig.', 'meal');
+    if (t.food >= BAL.foodMax - 0.01) finishService('Mätt och belåten.', 'meal');
   } else if (t.state === 'sleep') {
     t.energy = Math.min(BAL.energyMax, t.energy + BAL.sleepRate * dtMin);
-    if (t.energy >= BAL.energyMax - 0.01) finishService('Utsövd! Vera har fyllt termosen.', 'nightSleep');
+    if (t.energy >= BAL.energyMax - 0.01) finishService('Utsövd och pigg!', 'nightSleep');
   }
 
   const drain = (t.state === 'driving' ? BAL.energyDrainDrive : BAL.energyDrainIdle) * energyFactor();
   if (t.state !== 'sleep') t.energy -= drain * dtMin;
   if (t.state !== 'eat') t.food -= BAL.foodDrain * foodFactor() * dtMin;
 
-  if (t.energy <= 0) { t.energy = 0; return failLevel('Du somnade vid ratten. Vera på Motell Vilan har alltid en säng — sov innan energin tar slut.', 'nightSleep'); }
-  if (t.food <= 0) { t.food = 0; return failLevel('Du blev yr av hunger. Bengt på Vägkrogen har köttbullar som väntar — stanna och ät i tid.', 'meal'); }
+  if (t.energy <= 0) { t.energy = 0; return failLevel('Du somnade vid ratten. Sov på vandrarhemmet innan energin tar slut.', 'nightSleep'); }
+  if (t.food <= 0) { t.food = 0; return failLevel('Du blev yr av hunger. Stanna vid matstället och ät i tid.', 'meal'); }
 
   const lim = currentLevel().timeLimit;
   if (lim !== null && game.clock >= lim) return failLevel('Tiden rann ut. Ingen blir arg på dig, men maten hann bli kall.', 'stopwatch');
@@ -698,6 +780,7 @@ function setupLevel() {
   game.queue = [];
   game.route = [];
   game.userPaused = false;
+  game.places = levelPlaces(lvl);
   game.deliveries = lvl.deliveries.map(d => Object.assign({}, d, { state: 'waiting' }));
   const t = game.truck;
   t.x = LOCATIONS.depot.x; t.y = LOCATIONS.depot.y;
@@ -757,18 +840,18 @@ function objectiveList() {
   let html = '<ul class="objectives">';
   for (const d of game.deliveries) {
     const cls = d.state === 'done' ? 'done' : d.state === 'carried' ? 'carried' : 'pending';
-    const ic = d.state === 'done' ? 'check' : (d.icon || 'box');
+    const ic = d.state === 'done' ? 'check' : d.item;
     const to = LOCATIONS[d.to], from = LOCATIONS[d.from];
-    const where = d.state === 'carried' ? 'på flaket → ' + (to.who || to.name)
-                : d.state === 'done' ? 'levererat till ' + (to.who || to.name)
-                : 'hämtas hos ' + (from.who || from.name) + ' → ' + (to.who || to.name);
-    html += '<li class="' + cls + '">' + iconSpan(ic) + '<span class="obj-text"><b>' + d.label + '</b> — ' + where + '</span></li>';
+    const where = d.state === 'carried' ? 'på flaket → ' + to.name
+                : d.state === 'done' ? 'levererat till ' + to.name
+                : from.name + ' → ' + to.name;
+    html += '<li class="' + cls + '">' + iconSpan(ic) + '<span class="obj-text"><b>' + itemName(d.item) + '</b> — ' + where + '</span></li>';
   }
   if (lvl.returnHome) {
     const allDone = game.deliveries.every(d => d.state === 'done');
     const home = allDone && game.truck.atNode === nodeKey(LOCATIONS.depot.x, LOCATIONS.depot.y) && game.truck.state !== 'driving';
     html += '<li class="' + (home ? 'done' : allDone ? 'carried' : 'pending') + '">' + iconSpan(home ? 'check' : 'house') +
-      '<span class="obj-text">Kör hem till Greta på Depån</span></li>';
+      '<span class="obj-text">Kör tillbaka till depån</span></li>';
   }
   return html + '</ul>';
 }
@@ -792,7 +875,7 @@ function showQuestModal(atStart) {
       ? '<p class="sub">' + iconSpan('coffee') + ' Du har redan kört ett pass i dag' +
         (lvl.startEnergy ? ', energin är nere på ' + lvl.startEnergy + ' %' : '') +
         (lvl.startFood ? ' och du börjar bli hungrig' : '') +
-        '. Planera in vila hos Vera eller mat hos Bengt.</p>'
+        '. Planera in vila och mat.</p>'
       : '') +
     (atStart ? '<p class="sub">' + iconSpan('info') + ' ' + (isRealtime()
         ? 'Tryck på en plats på kartan så åker hon dit direkt — klockan startar vid ditt första stopp, och du väljer nya åtgärder medan hon kör.'
@@ -805,11 +888,11 @@ function showQuestModal(atStart) {
 
 function showCompleteModal(lvl, timeBonus, total, wasLast) {
   const cheers = [
-    'Greta möter dig på gården med kaffepannan i hand.',
-    'Rosa vinkar från fönstret. Allt kom fram i tid.',
-    'Enzo sjunger en hel aria till din ära.',
-    'Sill spinner. Det betyder att du gjorde bra ifrån dig.',
-    'Bengt höjer kaffekoppen mot dig när du kör förbi.'
+    'Allt kom fram i tid.',
+    'Kunderna är nöjda.',
+    'Snyggt kört.',
+    'Inte en enda låda tappad.',
+    'Precis i tid, som vanligt.'
   ];
   showModal(
     '<p class="eyebrow">Uppdrag slutfört</p>' +
@@ -834,8 +917,8 @@ function showCompleteModal(lvl, timeBonus, total, wasLast) {
 function showVictoryModal() {
   showModal(
     '<p class="eyebrow">Alla uppdrag slutförda</p>' +
-    '<h2>' + iconSpan('trophy') + 'Tack, Delivery Girl</h2>' +
-    '<p class="story">Torget är fullt av folk och lyktorna tänds en efter en. Rosa har bakat en tårta med en liten lastbil i marsipan, Enzo sjunger falskt men innerligt, och Greta säger att hon alltid vetat att du skulle klara det. Sill sover i din förarstol.</p>' +
+    '<h2>' + iconSpan('trophy') + 'Tack för i dag!</h2>' +
+    '<p class="story">Alla leveranser är gjorda och lyktorna tänds på torget. Du är stadens bästa budbil.</p>' +
     '<p class="sub">' + iconSpan('money') + ' Sammanlagd kassa: ' + run.money + ' kr</p>' +
     '<div class="btnrow">' +
     '<button class="btn" id="modalReplay">' + iconSpan('retry') + '<span class="lbl">Kör sista igen</span></button>' +
@@ -865,7 +948,7 @@ function showFailModal(reason, icon) {
 }
 
 function showShopModal(returnTo) {
-  let html = '<p class="eyebrow">Gustavs verkstad &amp; butik</p><h2>' + iconSpan('shop') + 'Butiken</h2>' +
+  let html = '<p class="eyebrow">Verkstad &amp; butik</p><h2>' + iconSpan('shop') + 'Butiken</h2>' +
     '<p class="sub">Kassa: <b style="color:var(--accent)">' + run.money + ' kr</b></p>';
   for (const id in UPGRADES) {
     const u = UPGRADES[id];
@@ -1020,8 +1103,8 @@ function renderStatus() {
   let slots = '';
   for (let i = 0; i < cargoMax(); i++) {
     const d = carried[i];
-    slots += '<span class="slot' + (d ? ' full' : '') + '" title="' + (d ? d.label : 'Tom lastplats') + '">' +
-      (d ? iconSpan(d.icon || 'box') : '') + '</span>';
+    slots += '<span class="slot' + (d ? ' full' : '') + '" title="' + (d ? itemName(d.item) : 'Tom lastplats') + '">' +
+      (d ? iconSpan(d.item) : '') + '</span>';
   }
   $('#cargoRow').innerHTML = slots + '<span>' + carried.length + '/' + cargoMax() + '</span>';
 }
@@ -1279,7 +1362,8 @@ function draw() {
   drawStreetNames();
   drawScenery();
   drawRoute();
-  for (const id in LOCATIONS) drawLocation(LOCATIONS[id]);
+  for (const id of game.places) drawLocation(LOCATIONS[id]);
+  drawLabels();
   drawRouteBadges();
   drawTruck();
 
@@ -1562,64 +1646,161 @@ const markerY = loc => loc.y + (loc.oy || 0);
 // omöjliga att se eller träffa i översiktsvyn.
 const markerSize = () => clamp(46 / cam.scale, 62, 150);
 
+// Etiketter samlas upp under ritningen och placeras sist, så att två
+// namn aldrig hamnar ovanpå varandra i översiktsvyn.
+const pendingLabels = [];
+
+function drawLabels() {
+  const fs = clamp(15 / cam.scale, 13, 46);
+  ctx.font = '700 ' + fs + 'px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  const placed = [];
+  const overlaps = r => placed.some(q => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0);
+
+  for (const l of pendingLabels) {
+    const tw = ctx.measureText(l.text).width;
+    let box = null;
+    // Försök under skylten, annars strax ovanför, annars hoppa över
+    for (const dy of [fs * 0.55 + 6, -(fs * 2.2), fs * 2.1]) {
+      const ly = l.y + dy;
+      const cand = { x0: l.x - tw / 2 - 8, x1: l.x + tw / 2 + 8, y0: ly - fs * 0.78, y1: ly + fs * 0.47, ly };
+      if (!overlaps(cand)) { box = cand; break; }
+    }
+    if (!box) continue;
+    placed.push(box);
+    ctx.fillStyle = 'rgba(16,20,27,0.82)';
+    roundRect(box.x0, box.y0, box.x1 - box.x0, fs * 1.25, fs * 0.5);
+    ctx.fill();
+    ctx.fillStyle = '#e8ecf2';
+    ctx.fillText(l.text, l.x, box.ly + fs * 0.28);
+  }
+  pendingLabels.length = 0;
+}
+
+// Gemensam pratbubbla — används både för beställningar och för bilen
+function drawSpeechBubble(cx, cy, iconName, color, size, phase, inkColor) {
+  const bob = Math.sin(animTime * 2.4 + phase) * size * 0.09;
+  const y = cy + bob;
+  const r = size * 0.5;
+  ctx.save();
+  ctx.beginPath();
+  roundRect(cx - r, y - r, r * 2, r * 2 * 0.86, r * 0.42);
+  // Svans ned mot ägaren
+  ctx.moveTo(cx - r * 0.26, y + r * 0.7);
+  ctx.lineTo(cx - r * 0.02, y + r * 1.12);
+  ctx.lineTo(cx + r * 0.3, y + r * 0.7);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(250,250,248,0.97)';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(2.5, size * 0.075);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+  drawIcon(iconName, inkColor || color, cx, y - r * 0.06, size * 0.68);
+}
+
+// Ett hus med en skylt: skylten visar vad stället handlar med
+function drawShop(loc, mx, my, s, highlight) {
+  const w = s * 0.92, h = s * 0.6;
+  const top = my - s * 0.1;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.45)';
+  ctx.shadowBlur = s * 0.2;
+  ctx.shadowOffsetY = s * 0.07;
+  // Tak
+  ctx.beginPath();
+  ctx.moveTo(mx - w * 0.62, top);
+  ctx.lineTo(mx, top - s * 0.42);
+  ctx.lineTo(mx + w * 0.62, top);
+  ctx.closePath();
+  ctx.fillStyle = loc.color;
+  ctx.fill();
+  // Fasad
+  ctx.fillStyle = '#232932';
+  roundRect(mx - w / 2, top, w, h, s * 0.07);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.strokeStyle = highlight ? '#f6b93b' : 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = (highlight ? 3.5 : 2) * Math.max(1, s / 62);
+  roundRect(mx - w / 2, top, w, h, s * 0.07);
+  ctx.stroke();
+
+  // Skylten över dörren
+  const sw = w * 0.74, sh = h * 0.48;
+  const sx = mx - sw / 2, sy = top + h * 0.13;
+  ctx.fillStyle = '#f4efe3';
+  roundRect(sx, sy, sw, sh, sh * 0.28);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(16,20,27,0.8)';
+  ctx.lineWidth = Math.max(1.5, s * 0.028);
+  ctx.stroke();
+  drawIcon(loc.icon, '#2b3038', mx, sy + sh / 2, sh * 0.86);
+
+  // Dörr
+  ctx.fillStyle = '#3c434e';
+  roundRect(mx - w * 0.11, top + h * 0.68, w * 0.22, h * 0.32, s * 0.03);
+  ctx.fill();
+}
+
+// Ett hämtställe ritas som en hög med fem varor
+function drawPile(loc, mx, my, s, highlight) {
+  const r = s * 0.5;
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(mx, my + r * 0.62, r * 0.95, r * 0.4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(20,24,31,0.55)';
+  ctx.fill();
+  ctx.restore();
+
+  if (highlight) {
+    ctx.beginPath();
+    ctx.ellipse(mx, my + r * 0.62, r * 1.02, r * 0.46, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = '#f6b93b';
+    ctx.lineWidth = 3 * Math.max(1, s / 62);
+    ctx.stroke();
+  }
+
+  const one = s * 0.42;
+  const spots = [
+    [-0.29, 0.30], [0.00, 0.36], [0.29, 0.30],
+    [-0.15, 0.02], [0.16, 0.02]
+  ];
+  for (const [dx, dy] of spots) drawIcon(loc.icon, loc.color, mx + dx * s, my + dy * s, one);
+}
+
 function drawLocation(loc) {
   const pickup = game.deliveries.some(d => d.state === 'waiting' && d.from === loc.id);
-  const dropoff = game.deliveries.some(d => d.state === 'carried' && d.to === loc.id);
+  const wants = game.deliveries.filter(d => d.state !== 'done' && d.to === loc.id);
+  const ready = game.deliveries.some(d => d.state === 'carried' && d.to === loc.id);
   const s = markerSize();
   const mx = markerX(loc), my = markerY(loc);
 
-  // Infart från vägkorsningen fram till huset
+  // Infart från gatan fram till huset
   ctx.strokeStyle = '#4a4034';
-  ctx.lineWidth = 16;
+  ctx.lineWidth = Math.max(12, s * 0.26);
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(loc.x, loc.y);
   ctx.lineTo(mx, my);
   ctx.stroke();
   ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = Math.max(2, s * 0.05);
   ctx.stroke();
 
-  ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.45)';
-  ctx.shadowBlur = 12;
-  ctx.shadowOffsetY = 4;
-  ctx.fillStyle = 'rgba(22,27,35,0.92)';
-  roundRect(mx - s / 2, my - s / 2, s, s, s * 0.22);
-  ctx.fill();
-  ctx.restore();
+  if (loc.kind === 'pickup') drawPile(loc, mx, my, s, pickup);
+  else drawShop(loc, mx, my, s, ready);
 
-  ctx.strokeStyle = dropoff ? '#f6b93b' : pickup ? '#7ebef0' : 'rgba(255,255,255,0.28)';
-  ctx.lineWidth = (dropoff || pickup ? 4 : 2) * Math.max(1, s / 62);
-  roundRect(mx - s / 2, my - s / 2, s, s, s * 0.22);
-  ctx.stroke();
+  pendingLabels.push({ text: loc.name, x: mx, y: my + s * 0.62 });
 
-  drawIcon(loc.icon, loc.color, mx, my - s * 0.03, s * 0.58);
-
-  if (pickup || dropoff) {
-    const bx = mx + s / 2 - s * 0.07, by = my - s / 2 + s * 0.07;
-    ctx.beginPath();
-    ctx.arc(bx, by, s * 0.21, 0, Math.PI * 2);
-    ctx.fillStyle = dropoff ? '#f6b93b' : '#7ebef0';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(10,14,20,0.8)';
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
-    drawIcon('box', '#14181f', bx, by, s * 0.24);
-  }
-
-  // Skärmkonstant etikett
-  const fs = clamp(15 / cam.scale, 13, 46);
-  ctx.font = '700 ' + fs + 'px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  const label = loc.who && cam.scale > 0.55 ? loc.name + ' · ' + loc.who : loc.name;
-  const tw = ctx.measureText(label).width;
-  const ly = my + s / 2 + fs * 0.55 + 6;
-  ctx.fillStyle = 'rgba(16,20,27,0.82)';
-  roundRect(mx - tw / 2 - 8, ly - fs * 0.78, tw + 16, fs * 1.25, fs * 0.5);
-  ctx.fill();
-  ctx.fillStyle = '#e8ecf2';
-  ctx.fillText(label, mx, ly + fs * 0.28);
+  // Beställningar: en gungande pratbubbla per vara som väntar
+  wants.forEach((d, i) => {
+    const bs = s * 0.82;
+    const spread = (i - (wants.length - 1) / 2) * bs * 1.12;
+    drawSpeechBubble(mx + spread, my - s * 0.66 - bs * 0.5, d.item,
+      d.state === 'carried' ? '#3f8f4c' : '#c2503f', bs, i * 1.3, '#2b3038');
+  });
 }
 
 function drawTruck() {
@@ -1638,17 +1819,13 @@ function drawTruck() {
   if (c) ctx.drawImage(c, -24, -26, 48, 48);
   ctx.restore();
 
-  const bubble = t.state === 'charge' ? 'charge' : t.state === 'eat' ? 'meal' : t.state === 'sleep' ? 'nightSleep' : null;
+  const busy = t.state === 'charge' ? 'charge' : t.state === 'eat' ? 'meal' : t.state === 'sleep' ? 'nightSleep' : null;
+  const warn = truckWarning();
+  const bubble = busy || warn;
   if (bubble) {
-    const by = t.y - 44 - Math.sin(animTime * 3) * 3;
-    ctx.beginPath();
-    ctx.arc(t.x, by, 17, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(16,20,27,0.92)';
-    ctx.fill();
-    ctx.strokeStyle = '#f6b93b';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    drawIcon(bubble, '#f6b93b', t.x, by, 21);
+    const bs = clamp(54 / cam.scale, 50, 104);
+    const col = warn && !busy ? '#c2503f' : '#c98a1e';
+    drawSpeechBubble(t.x, t.y - 30 - bs * 0.5, bubble, col, bs, 0, col);
   }
 }
 
@@ -1736,7 +1913,7 @@ function locationAt(wx, wy) {
   const rHouse = Math.max(markerSize() * 0.62, (touch ? 30 : 24) / cam.scale);
   const rNode = Math.max(34, (touch ? 22 : 16) / cam.scale);
   let best = null, bestD = Infinity;
-  for (const id in LOCATIONS) {
+  for (const id of game.places) {
     const L = LOCATIONS[id];
     const d = Math.min(
       Math.hypot(markerX(L) - wx, markerY(L) - wy) / rHouse,
