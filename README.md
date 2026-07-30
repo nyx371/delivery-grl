@@ -6,7 +6,7 @@ Du är Delivery Girl och kör stadens lilla eldrivna lastbil. Hämta varor och k
 
 ## Spelet
 
-- **10 uppdrag** med korta beskrivningar och tidsgränser.
+- **10 uppdrag som är pussel:** varje bana har bara 1–3 turordningar som går ihop inom tidsgränsen. Avstängda gator och broar som fälls upp för båttrafik gör att ordningen och tidpunkten avgör. Hela bandesignen och lösningarna finns i [LEVELS.md](LEVELS.md).
 - **Enkelt bildspråk:** ett hämtställe ritas som en hög med fem varor, en butik som ett hus med en skylt för vad den handlar med, och den som väntar på en leverans har en gungande pratbubbla med symbolen för varan den vill ha.
 - **Bara det som hör till uppdraget syns** på kartan. Fler platser dyker upp allt eftersom uppdragen blir svårare.
 - **Uppdragslista** uppe till höger som stryks över allt eftersom leveranserna kommer fram.
@@ -26,7 +26,7 @@ Kugghjulet uppe till höger öppnar inställningarna, där du väljer spelläge.
 
 ## Kartan
 
-Spelplanen är en hel stad med Stockholm som inspiration: sex stadsdelar — city, Kungsholmen, Östermalm, Gamla stan, Söder och Djurgården — omgivna av vatten som inte går att köra i. Gatorna är riktiga gator snarare än ett rutnät, från Kungsgatan och Klarabergsgatan i city till Hornsgatan och Ringvägen i söder och Strandvägen på Östermalm. Sju broar binder ihop stadsdelarna och blir flaskhalsar värda att planera kring. Parker som Humlegården, Tantolunden och Vitabergsparken ligger i vägen och måste köras runt.
+Spelplanen är en hel stad med Stockholm som inspiration: sex stadsdelar — city, Kungsholmen, Östermalm, Gamla stan, Söder och Djurgården — omgivna av vatten som inte går att köra i. Gatorna är riktiga gator snarare än ett rutnät, från Kungsgatan och Klarabergsgatan i city till Hornsgatan och Ringvägen i söder och Strandvägen på Östermalm. Sju broar binder ihop stadsdelarna och blir flaskhalsar värda att planera kring — vissa uppdrag stänger av en helt, andra låter dem fällas upp för båttrafik i bestämda fönster. Ruttvalet tar hänsyn till tidtabellen och kör hellre runt en uppfälld bro än väntar, när det går. Parker som Humlegården, Tantolunden och Vitabergsparken ligger i vägen och måste köras runt.
 
 Platserna ligger utspridda över hela stan, så en enda leverans kan gå från Djurgården i öster till Söder och kräva laddstopp på vägen. Det finns bara **två laddstationer**, två matställen och två ställen att sova på — räckvidden måste planeras.
 
@@ -40,6 +40,7 @@ Kartan börjar centrerad på bilen och **kameran följer henne** medan hon kör.
 - Dubbeltryck-zoom, nyp-zoom på sidan, textmarkering och iOS-förstoringsglas är avstängda för en app-lik känsla på mobil. Knappar och träffytor är tumstora på pekskärmar, och träffytan för en plats mäts i skärmpixlar så den är lika lätt att träffa vid alla zoomnivåer.
 - Mobilanpassat gränssnitt: slimmad status, en bottenrad med bara Kör och hastighet, ett körschema som fäller ihop sig när det är tomt, och en ring som kvitterar varje tryck på kartan. Sammanlagt täcker gränssnittet 18 % av en telefonskärm.
 - Minimalt gränssnitt: pengarna visas i butiken och versionsnumret med ändringslogg i inställningsmenyn.
+- **Bandesign:** `tools/verify-levels.js` provar varje turordning av leveranserna i varje uppdrag och räknar hur många som går ihop, så att banorna håller sig på 1–3 lösningar. Kör `node tools/verify-levels.js` (eller `--probe` för tiderna utan tidsgräns).
 - **Cache-busting:** `tools/cache-bust.js` stämplar innehållshashar på `style.css`, `icons.js` och `game.js` i `index.html`. Det körs automatiskt vid varje push av `.github/workflows/cache-bust.yml`, som committar tillbaka uppdaterade hashar när något ändrats. Kör det lokalt med `node tools/cache-bust.js`, eller aktivera pre-commit-hooken en gång per klon med `git config core.hooksPath .githooks` så stämplas det redan vid commit.
 
 ## Attribution

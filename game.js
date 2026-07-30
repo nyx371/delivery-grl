@@ -5,9 +5,21 @@
    Vanilla JS + Canvas. Symboler: game-icons.net (CC BY 3.0)
    ============================================================ */
 
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 
 const CHANGELOG = [
+  {
+    version: '2.1.0',
+    date: '2026-07-28',
+    items: [
+      'Varje uppdrag är nu ett pussel med bara 1–3 turordningar som går ihop, i stället för en öppen körning.',
+      'Avstängda gator: ett uppdrag kan stänga av en gata eller bro helt, markerad med rödvita bockar.',
+      'Broar med tidtabell fälls upp för båttrafik — grön bricka betyder öppen, röd visar minuter kvar.',
+      'Ruttvalet tar hänsyn till tidtabellen och kör hellre runt en uppfälld bro än väntar, när det går.',
+      'Alla tio banor omgjorda kring hindren, med tidsgränser satta så att bara de avsedda lösningarna hinner fram.',
+      'Bandesignen är dokumenterad i LEVELS.md, och tools/verify-levels.js räknar lösningarna per bana.'
+    ]
+  },
   {
     version: '2.0.0',
     date: '2026-07-28',
@@ -268,9 +280,24 @@ const nodeAt = id => ({ x: NODES[id][0], y: NODES[id][1] });
 const keyOf = id => nodeKey(NODES[id][0], NODES[id][1]);
 
 const graph = {};
-(function buildGraph() {
+const edgeStreet = {};   // vilken gata en viss sträcka tillhör
+const edgeKey = (a, b) => a < b ? a + '~' + b : b + '~' + a;
+
+(function mapEdges() {
+  for (const st of STREETS) {
+    for (let i = 0; i < st.nodes.length - 1; i++) {
+      edgeStreet[edgeKey(keyOf(st.nodes[i]), keyOf(st.nodes[i + 1]))] = st.name;
+    }
+  }
+})();
+
+// Vägnätet byggs om per uppdrag, eftersom gator kan vara avstängda
+function buildGraph(closed) {
+  for (const k in graph) delete graph[k];
+  for (const k in pathCache) delete pathCache[k];
   for (const id in NODES) graph[keyOf(id)] = [];
   for (const st of STREETS) {
+    if (closed && closed.has(st.name)) continue;
     for (let i = 0; i < st.nodes.length - 1; i++) {
       const a = nodeAt(st.nodes[i]), b = nodeAt(st.nodes[i + 1]);
       const ka = keyOf(st.nodes[i]), kb = keyOf(st.nodes[i + 1]);
@@ -279,7 +306,7 @@ const graph = {};
       if (!graph[kb].some(e => e.key === ka)) graph[kb].push({ key: ka, dist: d });
     }
   }
-})();
+}
 
 function pointInPoly(x, y, poly) {
   let inside = false;
@@ -293,9 +320,18 @@ const onLand = (x, y) => LANDS.some(poly => pointInPoly(x, y, poly));
 const inPark = (x, y) => PARKS.some(p => ((x - p.cx) / p.rx) ** 2 + ((y - p.cy) / p.ry) ** 2 < 1);
 
 const pathCache = {};
-function shortestPath(fromKey, toKey) {
-  const ck = fromKey + '>' + toKey;
-  if (pathCache[ck]) return pathCache[ck];
+buildGraph(null);
+
+// Vilka broar som står uppfällda just nu — ingår i cachenyckeln eftersom
+// rutten ser olika ut beroende på tidtabellen.
+function shutStreets() {
+  const gates = (typeof game !== 'undefined' && game.levelIndex != null) ? (currentLevel().gates || []) : [];
+  const out = new Set();
+  for (const g of gates) if (gateShutAt(g, game.clock)) out.add(g.street);
+  return out;
+}
+
+function dijkstra(fromKey, toKey, blocked) {
   const dist = {}, prev = {}, visited = {};
   for (const k in graph) dist[k] = Infinity;
   dist[fromKey] = 0;
@@ -305,6 +341,7 @@ function shortestPath(fromKey, toKey) {
     if (cur === null || cur === toKey) break;
     visited[cur] = true;
     for (const e of graph[cur]) {
+      if (blocked && blocked.size && blocked.has(edgeStreet[edgeKey(cur, e.key)])) continue;
       const nd = dist[cur] + e.dist;
       if (nd < dist[e.key]) { dist[e.key] = nd; prev[e.key] = cur; }
     }
@@ -312,9 +349,55 @@ function shortestPath(fromKey, toKey) {
   const path = [];
   let k = toKey;
   while (k) { path.unshift(k); k = prev[k]; }
-  const res = { path, dist: dist[toKey] };
+  return { path, dist: dist[toKey] };
+}
+
+/* Ruttval tar hänsyn till vilka broar som är uppfällda just nu: hon kör
+   hellre runt än ställer sig och väntar. Går det inte runt får hon vänta
+   vid bron. */
+function shortestPath(fromKey, toKey, ignoreGates) {
+  const blocked = ignoreGates ? null : shutStreets();
+  const sig = blocked && blocked.size ? [...blocked].sort().join('+') : '-';
+  const ck = sig + '|' + fromKey + '>' + toKey;
+  if (pathCache[ck]) return pathCache[ck];
+  let res = dijkstra(fromKey, toKey, blocked);
+  // Ingen väg runt? Ta den vanliga och vänta ut bron.
+  if (!isFinite(res.dist)) res = dijkstra(fromKey, toKey, null);
   pathCache[ck] = res;
   return res;
+}
+
+/* ---------- Broöppningar ---------- */
+/* En bro med tidtabell är stängd för biltrafik i vissa fönster medan
+   båtarna passerar. Kör man fram när den är uppfälld får man vänta. */
+
+function gateFor(streetName) {
+  return (currentLevel().gates || []).find(g => g.street === streetName) || null;
+}
+
+// Är bron uppfälld vid en viss tidpunkt?
+function gateShutAt(gate, minute) {
+  if (!gate) return false;
+  const p = gate.every;
+  const t = p ? minute % p : minute;
+  return gate.shut.some(w => t >= w[0] && t < w[1]);
+}
+
+// Hur många minuter tills den öppnar igen
+function gateOpensIn(gate, minute) {
+  const p = gate.every;
+  const t = p ? minute % p : minute;
+  for (const w of gate.shut) if (t >= w[0] && t < w[1]) return w[1] - t;
+  return 0;
+}
+
+// Är sträckan mellan två noder spärrad just nu?
+function edgeBlockedNow(ka, kb) {
+  const name = edgeStreet[edgeKey(ka, kb)];
+  if (!name) return null;
+  const gate = gateFor(name);
+  if (gate && gateShutAt(gate, game.clock)) return { name, gate };
+  return null;
 }
 
 /* ---------- Personer & platser ---------- */
@@ -395,6 +478,13 @@ const SERVICE_TEXT = {
 /* Varje uppdrag listar sina leveranser (hämtställe → butik) och vilka
    extra platser som ska synas. Bara dessa platser ritas ut på kartan. */
 
+/* Varje uppdrag är ett pussel: avstängda gator, broar med tidtabell och
+   knappa marginaler gör att bara någon enstaka turordning går ihop.
+   Se LEVELS.md för lösningarna. */
+
+const CH = ['laddCity', 'laddSoder'];
+const ALL_SERVICE = ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken', 'vandrarhemmet', 'vilohemmet'];
+
 const LEVELS = [
   {
     title: 'Bröd till caféet',
@@ -403,100 +493,114 @@ const LEVELS = [
     deliveries: [{ from: 'bageriet', to: 'cafeet', item: 'bread' }]
   },
   {
-    title: 'Fisk över broarna',
-    story: 'Fisken ligger längst ut i öster och ska till söder. Långt att köra — ladda på vägen.',
-    timeLimit: 68, reward: 600,
+    title: 'Bron öppnar för båtarna',
+    story: 'Fisken ska från hamnen i öster till söder. Danviksbron fälls upp för båttrafik — kör före den stänger, annars får du vänta ut den eller ta vägen runt.',
+    timeLimit: 88, reward: 600,
     deliveries: [{ from: 'fisken', to: 'fiskrest', item: 'fish' }],
-    extra: ['laddCity', 'laddSoder']
+    extra: CH,
+    gates: [{ street: 'Danviksbron', shut: [[22, 55]] }]
   },
   {
-    title: 'Mjölk och grönsaker',
-    story: 'Två leveranser i var sin ände av stan. Flaket rymmer bara en last i taget.',
-    timeLimit: 105, reward: 750,
+    title: 'Västerbron är avstängd',
+    story: 'Vägarbete på Västerbron. Enda vägen till Kungsholmen går via Stadshusbron, så ordningen på ärendena avgör.',
+    timeLimit: 86, reward: 750,
     deliveries: [
       { from: 'mejeriet', to: 'cafeet', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' }
     ],
-    extra: ['laddCity', 'laddSoder']
+    extra: CH,
+    closed: ['Västerbron']
   },
   {
-    title: 'Lunchrusningen',
-    story: 'Tre kök väntar före lunch, spridda över hela stan.',
-    timeLimit: 140, reward: 950,
+    title: 'Slussen i tid',
+    story: 'Tre leveranser, och Slussen fälls upp var femtionde minut. Planera så att du passerar när den är nere.',
+    timeLimit: 94, reward: 950,
     deliveries: [
       { from: 'bageriet', to: 'cafeet', item: 'bread' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
-      { from: 'fisken', to: 'fiskrest', item: 'fish' }
+      { from: 'lagret', to: 'skolan', item: 'crate' }
     ],
-    extra: ['laddCity', 'laddSoder']
+    extra: CH,
+    closed: ['Västerbron'],
+    gates: [{ street: 'Slussen', shut: [[32, 50]], every: 50 }]
   },
   {
     title: 'Långpasset',
-    story: 'Ett långt pass. Du har redan kört i dag, så planera in mat och vila.',
-    timeLimit: 330, reward: 1100, startEnergy: 60, startFood: 55,
+    story: 'Du har redan kört ett pass, och Stadshusbron är avstängd. Både mat och vila måste vävas in i rundan.',
+    timeLimit: 300, reward: 1100, startEnergy: 60, startFood: 55,
     deliveries: [
       { from: 'mejeriet', to: 'cafeet', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' }
     ],
-    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
+    extra: ALL_SERVICE,
+    closed: ['Stadshusbron']
   },
   {
-    title: 'Över broarna',
-    story: 'Lådorna står i lagret på Gamla stan. Enda vägen ut går över broarna.',
-    timeLimit: 125, reward: 1000,
+    title: 'Genom Gamla stan',
+    story: 'Lådorna står i lagret på Gamla stan och Vasabron öppnas i perioder. Nybrobron är dessutom avstängd — östra sidan nås bara söderifrån.',
+    timeLimit: 97, reward: 1000,
     deliveries: [
       { from: 'lagret', to: 'glassbaren', item: 'crate' },
       { from: 'mejeriet', to: 'cafeet', item: 'milk' }
     ],
-    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken']
+    extra: CH.concat(['matstallet']),
+    closed: ['Nybrobron'],
+    gates: [{ street: 'Vasabron', shut: [[40, 62]] }]
   },
   {
-    title: 'Blommor och vin',
-    story: 'Tre leveranser kors och tvärs. Tänk ut i vilken ordning du tar dem.',
-    timeLimit: 235, reward: 1300,
+    title: 'Två broar, ett fönster',
+    story: 'Djurgårdsbron och Danviksbron fälls upp växelvis — bara den ena är nere åt gången. Du ska både in på ön och ut igen, så det gäller att komma i rätt ände av fönstret.',
+    timeLimit: 150, reward: 1300,
     deliveries: [
-      { from: 'odlingen', to: 'blomsteraffaren', item: 'sunflower' },
-      { from: 'bryggeriet', to: 'hotellet', item: 'beer' },
+      { from: 'lagret', to: 'glassbaren', item: 'crate' },
+      { from: 'fisken', to: 'fiskrest', item: 'fish' },
       { from: 'bageriet', to: 'cafeet', item: 'bread' }
     ],
-    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
+    extra: ALL_SERVICE,
+    gates: [
+      { street: 'Djurgårdsbron', shut: [[0, 45]], every: 90 },
+      { street: 'Danviksbron', shut: [[45, 90]], every: 90 }
+    ]
   },
   {
     title: 'Storleveransen',
-    story: 'Fyra leveranser. Ett större flak sparar många vändor.',
-    timeLimit: 200, reward: 1600, startEnergy: 65,
+    story: 'Fyra leveranser med Västerbron avstängd. Ett större flak sparar många vändor.',
+    timeLimit: 160, reward: 1600, startEnergy: 65,
     deliveries: [
       { from: 'lagret', to: 'skolan', item: 'crate' },
       { from: 'mejeriet', to: 'skolan', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'bageriet', to: 'cafeet', item: 'bread' }
     ],
-    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
+    extra: ALL_SERVICE,
+    closed: ['Västerbron']
   },
   {
     title: 'Expressrundan',
-    story: 'Tre leveranser på kort tid, från öster till söder. Undvik omvägar.',
-    timeLimit: 250, reward: 1800,
+    story: 'Tre leveranser, snäv tid och Slussen som öppnar mitt i rundan. Bara en ordning hinner fram.',
+    timeLimit: 158, reward: 1800,
     deliveries: [
       { from: 'bageriet', to: 'glassbaren', item: 'cake' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' },
       { from: 'bryggeriet', to: 'hotellet', item: 'beer' }
     ],
-    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
+    extra: ALL_SERVICE,
+    gates: [{ street: 'Slussen', shut: [[55, 85]] }]
   },
   {
     title: 'Hela stan',
-    story: 'Sista passet: fem leveranser i stadens alla delar. Ladda, ät och sov i rätt lägen.',
-    timeLimit: 370, reward: 2400, startEnergy: 70, startFood: 60,
+    story: 'Sista passet: fyra leveranser, avstängd Nybrobro och en Västerbro som öppnas för båtarna. Ladda, ät och sov i rätt lägen.',
+    timeLimit: 215, reward: 2400, startEnergy: 70, startFood: 60,
     deliveries: [
       { from: 'mejeriet', to: 'cafeet', item: 'milk' },
       { from: 'odlingen', to: 'pizzerian', item: 'carrot' },
       { from: 'fisken', to: 'fiskrest', item: 'fish' },
-      { from: 'bryggeriet', to: 'hotellet', item: 'beer' },
       { from: 'lagret', to: 'skolan', item: 'crate' }
     ],
-    extra: ['laddCity', 'laddSoder', 'matstallet', 'korvkiosken', 'korvkiosken', 'vandrarhemmet', 'vilohemmet']
+    extra: ALL_SERVICE,
+    closed: ['Nybrobron'],
+    gates: [{ street: 'Västerbron', shut: [[60, 95]], every: 130 }]
   }
 ];
 
@@ -587,6 +691,7 @@ const game = {
   deliveries: [],
   route: [],
   places: new Set(),
+  closed: new Set(),
   follow: true,
   warned: { battery: false, energy: false, food: false },
   over: false,
@@ -595,6 +700,7 @@ const game = {
     x: NODES[START_NODE][0], y: NODES[START_NODE][1],
     atNode: nodeKey(NODES[START_NODE][0], NODES[START_NODE][1]),
     path: [], pathIndex: 0, facing: 1,
+    blocked: null, blockNoticed: false,
     state: 'idle',
     battery: 100, energy: 100, food: 100
   }
@@ -884,8 +990,19 @@ function tick(dtReal) {
 
   if (t.state === 'driving') {
     let travel = BAL.truckSpeed * dtReal * game.speed * powerFactor();
+    t.blocked = null;
     while (travel > 0 && t.pathIndex < t.path.length - 1) {
       const next = t.path[t.pathIndex + 1];
+      // Står vi i en korsning framför en uppfälld bro får vi vänta ut den
+      const here = t.path[t.pathIndex];
+      if (Math.abs(t.x - here.x) < 0.5 && Math.abs(t.y - here.y) < 0.5) {
+        const block = edgeBlockedNow(nodeKey(here.x, here.y), nodeKey(next.x, next.y));
+        if (block) {
+          if (!t.blockNoticed) { t.blockNoticed = true; SFX.warn(); toast(block.name + ' är uppfälld — väntar.', 'stopwatch'); }
+          t.blocked = block;
+          break;
+        }
+      }
       const dx = next.x - t.x, dy = next.y - t.y;
       const segLen = Math.hypot(dx, dy);
       if (Math.abs(dx) > 0.01) t.facing = dx > 0 ? 1 : -1;
@@ -897,9 +1014,10 @@ function tick(dtReal) {
         t.x = next.x; t.y = next.y;
         t.pathIndex++;
         t.atNode = nodeKey(next.x, next.y);
+        t.blockNoticed = false;
       }
     }
-    if (t.pathIndex >= t.path.length - 1) {
+    if (!t.blocked && t.pathIndex >= t.path.length - 1) {
       const item = game.queue[0];
       if (item && t.atNode === nodeKey(LOCATIONS[item.locId].x, LOCATIONS[item.locId].y)) arriveAt(item.locId);
       else { t.state = 'idle'; rebuildRoute(); }
@@ -960,12 +1078,15 @@ function setupLevel() {
   game.userPaused = false;
   queueSig = null;
   lastQueueLen = -1;
+  game.closed = new Set(lvl.closed || []);
+  buildGraph(game.closed);
   game.places = levelPlaces(lvl);
   game.deliveries = lvl.deliveries.map(d => Object.assign({}, d, { state: 'waiting' }));
   const t = game.truck;
   t.x = NODES[START_NODE][0]; t.y = NODES[START_NODE][1];
   t.atNode = nodeKey(NODES[START_NODE][0], NODES[START_NODE][1]);
   t.path = []; t.pathIndex = 0; t.facing = 1;
+  t.blocked = null; t.blockNoticed = false;
   t.state = 'idle';
   t.battery = batteryMax();
   t.energy = lvl.startEnergy || BAL.energyMax;
@@ -1726,9 +1847,10 @@ function drawRoads() {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   const width = st => st.bridge ? 46 : st.big ? 52 : 38;
+  const open = STREETS.filter(st => !game.closed.has(st.name));
 
   // Broarna får räcken som sticker ut i vattnet
-  for (const st of STREETS) {
+  for (const st of open) {
     if (!st.bridge) continue;
     ctx.strokeStyle = '#1a1d23';
     ctx.lineWidth = width(st) + 18;
@@ -1737,9 +1859,9 @@ function drawRoads() {
   }
   // Kantsten
   ctx.strokeStyle = '#20242b';
-  for (const st of STREETS) { ctx.lineWidth = width(st) + 9; traceStreet(st); ctx.stroke(); }
+  for (const st of open) { ctx.lineWidth = width(st) + 9; traceStreet(st); ctx.stroke(); }
   // Asfalt
-  for (const st of STREETS) {
+  for (const st of open) {
     ctx.strokeStyle = st.bridge ? '#3a3f47' : '#33383f';
     ctx.lineWidth = width(st);
     traceStreet(st);
@@ -1749,8 +1871,85 @@ function drawRoads() {
   ctx.strokeStyle = 'rgba(246,185,59,0.45)';
   ctx.lineWidth = 3;
   ctx.setLineDash([20, 18]);
-  for (const st of STREETS) { if (st.big || st.bridge) { traceStreet(st); ctx.stroke(); } }
+  for (const st of open) { if (st.big || st.bridge) { traceStreet(st); ctx.stroke(); } }
   ctx.setLineDash([]);
+
+  drawClosedStreets();
+  drawGates();
+}
+
+// Avstängda gator: grå stump med rödvita bockar
+function drawClosedStreets() {
+  for (const st of STREETS) {
+    if (!game.closed.has(st.name)) continue;
+    ctx.setLineDash([26, 30]);
+    ctx.strokeStyle = 'rgba(120,128,140,0.5)';
+    ctx.lineWidth = st.bridge ? 46 : st.big ? 52 : 38;
+    traceStreet(st);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (let i = 0; i < st.nodes.length - 1; i++) {
+      const a = nodeAt(st.nodes[i]), b = nodeAt(st.nodes[i + 1]);
+      drawBarrier((a.x + b.x) / 2, (a.y + b.y) / 2, Math.atan2(b.y - a.y, b.x - a.x));
+    }
+  }
+}
+
+function drawBarrier(x, y, ang) {
+  const w = clamp(80 / cam.scale, 90, 420);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(ang + Math.PI / 2);
+  ctx.fillStyle = '#e55a51';
+  roundRect(-w / 2, -w * 0.085, w, w * 0.17, w * 0.05);
+  ctx.fill();
+  ctx.fillStyle = '#f4efe3';
+  for (let i = 0; i < 4; i++) ctx.fillRect(-w / 2 + w * (0.09 + i * 0.235), -w * 0.085, w * 0.11, w * 0.17);
+  ctx.strokeStyle = 'rgba(16,20,27,0.75)';
+  ctx.lineWidth = Math.max(2, w * 0.02);
+  roundRect(-w / 2, -w * 0.085, w, w * 0.17, w * 0.05);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Broar med tidtabell: grön när öppen, röd när uppfälld, med nedräkning
+function drawGates() {
+  const gates = currentLevel().gates || [];
+  for (const g of gates) {
+    const st = STREETS.find(x => x.name === g.street);
+    if (!st) continue;
+    const a = nodeAt(st.nodes[0]), b = nodeAt(st.nodes[st.nodes.length - 1]);
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const shut = gateShutAt(g, game.clock);
+    const w = clamp(96 / cam.scale, 110, 520);
+
+    if (shut) {
+      ctx.save();
+      ctx.translate(mx, my);
+      ctx.rotate(Math.atan2(b.y - a.y, b.x - a.x) + Math.PI / 2);
+      ctx.fillStyle = '#e55a51';
+      roundRect(-w / 2, -w * 0.08, w, w * 0.16, w * 0.05);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Skylt med tid kvar
+    const r = w * 0.34;
+    ctx.beginPath();
+    ctx.arc(mx, my - w * 0.5, r, 0, Math.PI * 2);
+    ctx.fillStyle = shut ? '#e55a51' : '#57c26b';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(16,20,27,0.8)';
+    ctx.lineWidth = Math.max(2, r * 0.12);
+    ctx.stroke();
+    const mins = shut ? Math.ceil(gateOpensIn(g, game.clock)) : null;
+    ctx.fillStyle = '#12161c';
+    ctx.font = '700 ' + (r * 0.95).toFixed(1) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(shut ? String(mins) : '✓', mx, my - w * 0.5 + r * 0.04);
+    ctx.textBaseline = 'alphabetic';
+  }
 }
 
 // Gatunamnen dyker upp när man zoomar in
@@ -1762,6 +1961,7 @@ function drawStreetNames() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (const st of STREETS) {
+    if (game.closed.has(st.name)) continue;
     for (let i = 0; i < st.nodes.length - 1; i++) {
       const a = nodeAt(st.nodes[i]), b = nodeAt(st.nodes[i + 1]);
       const len = Math.hypot(b.x - a.x, b.y - a.y);
@@ -2147,7 +2347,7 @@ function drawTruck() {
   ctx.restore();
 
   const busy = t.state === 'charge' ? 'charge' : t.state === 'eat' ? 'meal' : t.state === 'sleep' ? 'nightSleep' : null;
-  const warn = truckWarning();
+  const warn = t.blocked ? 'stopwatch' : truckWarning();
   const bubble = busy || warn;
   if (bubble) {
     const bs = clamp(58 / cam.scale, 58, 120);
